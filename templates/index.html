@@ -1,458 +1,135 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Professional Betting Bot Analyzer</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-
-```
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Professional Betting Bot Analyzer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        min-height: 100vh;
-        padding: 20px;
-        color: #333;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+      color: #333;
     }
-    
     .container {
-        max-width: 1200px;
-        margin: 0 auto;
-        background: white;
-        border-radius: 20px;
-        box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-        overflow: hidden;
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+      overflow: hidden;
     }
-    
     .header {
-        background: linear-gradient(135deg, #2c3e50, #34495e);
-        color: white;
-        padding: 40px 20px;
-        text-align: center;
+      background: linear-gradient(135deg, #2c3e50, #34495e);
+      color: white;
+      padding: 40px 20px;
+      text-align: center;
     }
-    
     .header h1 { font-size: 2.5em; margin-bottom: 10px; }
     .header p { opacity: 0.9; font-size: 1.1em; }
-    
     .content { padding: 40px 20px; }
-    
     .form-group { margin-bottom: 30px; }
-    
     label {
-        display: block;
-        margin-bottom: 10px;
-        font-weight: 600;
-        color: #2c3e50;
-        font-size: 1.1em;
+      display: block; margin-bottom: 10px; font-weight: 600; color: #2c3e50; font-size: 1.1em;
     }
-    
     input[type="text"] {
-        width: 100%;
-        padding: 18px;
-        border: 2px solid #e0e6ed;
-        border-radius: 12px;
-        font-size: 16px;
-        transition: border-color 0.3s ease;
+      width: 100%; padding: 18px; border: 2px solid #e0e6ed; border-radius: 12px; font-size: 16px; transition: border-color 0.3s ease;
     }
-    
-    input[type="text"]:focus {
-        outline: none;
-        border-color: #667eea;
-    }
-    
+    input[type="text"]:focus { outline: none; border-color: #667eea; }
     .btn {
-        width: 100%;
-        padding: 20px;
-        border: none;
-        border-radius: 12px;
-        font-size: 18px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-bottom: 15px;
+      width: 100%; padding: 20px; border: none; border-radius: 12px; font-size: 18px; font-weight: 600; cursor: pointer;
+      transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px;
     }
-    
-    .btn-primary {
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        color: white;
-    }
-    
-    .btn-success {
-        background: linear-gradient(135deg, #2ecc71, #27ae60);
-        color: white;
-    }
-    
-    .btn:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 15px 30px rgba(0,0,0,0.2);
-    }
-    
-    .btn:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-        transform: none;
-        box-shadow: none;
-    }
-    
-    .progress {
-        background: #f8f9fa;
-        border-radius: 12px;
-        overflow: hidden;
-        margin: 25px 0;
-        height: 15px;
-    }
-    
-    .progress-bar {
-        height: 100%;
-        background: linear-gradient(90deg, #667eea, #764ba2);
-        transition: width 0.5s ease;
-        width: 0%;
-    }
-    
-    .status {
-        text-align: center;
-        margin: 25px 0;
-        padding: 20px;
-        border-radius: 12px;
-        font-weight: 500;
-        font-size: 1.1em;
-    }
-    
-    .status.testing {
-        background: #e3f2fd;
-        color: #1565c0;
-    }
-    
-    .status.completed {
-        background: #e8f5e8;
-        color: #2e7d32;
-    }
-    
-    .status.error {
-        background: #ffebee;
-        color: #c62828;
-    }
-    
-    .results {
-        margin-top: 40px;
-    }
-    
+    .btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+    .btn-success { background: linear-gradient(135deg, #2ecc71, #27ae60); color: white; }
+    .btn:hover { transform: translateY(-3px); box-shadow: 0 15px 30px rgba(0,0,0,0.2); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+    .progress { background: #f8f9fa; border-radius: 12px; overflow: hidden; margin: 25px 0; height: 15px; }
+    .progress-bar { height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); transition: width 0.5s ease; width: 0%; }
+    .status { text-align: center; margin: 25px 0; padding: 20px; border-radius: 12px; font-weight: 500; font-size: 1.1em; }
+    .status.testing { background: #e3f2fd; color: #1565c0; }
+    .status.completed { background: #e8f5e8; color: #2e7d32; }
+    .status.error { background: #ffebee; color: #c62828; }
+    .results { margin-top: 40px; }
     .readiness-card {
-        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-        border-radius: 20px;
-        padding: 40px;
-        margin: 30px 0;
-        text-align: center;
-        border: 3px solid;
+      background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+      border-radius: 20px; padding: 40px; margin: 30px 0; text-align: center; border: 3px solid;
     }
-    
-    .readiness-excellent {
-        border-color: #27ae60;
-        background: linear-gradient(135deg, #d5f4e6, #c8e6c9);
-    }
-    
-    .readiness-good {
-        border-color: #3498db;
-        background: linear-gradient(135deg, #e3f2fd, #bbdefb);
-    }
-    
-    .readiness-moderate {
-        border-color: #f39c12;
-        background: linear-gradient(135deg, #fff3cd, #ffeaa7);
-    }
-    
-    .readiness-insufficient {
-        border-color: #e74c3c;
-        background: linear-gradient(135deg, #ffebee, #ffcdd2);
-    }
-    
-    .readiness-title {
-        font-size: 2em;
-        font-weight: bold;
-        margin-bottom: 15px;
-    }
-    
-    .readiness-score {
-        font-size: 4em;
-        font-weight: bold;
-        margin: 20px 0;
-    }
-    
-    .summary-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 20px;
-        margin: 30px 0;
-    }
-    
-    .stat-card {
-        background: white;
-        padding: 25px;
-        border-radius: 15px;
-        text-align: center;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-    }
-    
-    .stat-value {
-        font-size: 2.5em;
-        font-weight: bold;
-        color: #2c3e50;
-        margin-bottom: 10px;
-    }
-    
-    .stat-label {
-        color: #666;
-        font-size: 1em;
-        font-weight: 500;
-    }
-    
-    .section {
-        background: #f8f9fa;
-        border-radius: 15px;
-        padding: 25px;
-        margin: 25px 0;
-    }
-    
-    .section h3 {
-        margin-bottom: 20px;
-        color: #2c3e50;
-        font-size: 1.5em;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    
+    .readiness-excellent { border-color: #27ae60; background: linear-gradient(135deg, #d5f4e6, #c8e6c9); }
+    .readiness-good { border-color: #3498db; background: linear-gradient(135deg, #e3f2fd, #bbdefb); }
+    .readiness-moderate { border-color: #f39c12; background: linear-gradient(135deg, #fff3cd, #ffeaa7); }
+    .readiness-insufficient { border-color: #e74c3c; background: linear-gradient(135deg, #ffebee, #ffcdd2); }
+    .readiness-title { font-size: 2em; font-weight: bold; margin-bottom: 15px; }
+    .readiness-score { font-size: 4em; font-weight: bold; margin: 20px 0; }
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 30px 0; }
+    .stat-card { background: white; padding: 25px; border-radius: 15px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+    .stat-value { font-size: 2.5em; font-weight: bold; color: #2c3e50; margin-bottom: 10px; }
+    .stat-label { color: #666; font-size: 1em; font-weight: 500; }
+    .section { background: #f8f9fa; border-radius: 15px; padding: 25px; margin: 25px 0; }
+    .section h3 { margin-bottom: 20px; color: #2c3e50; font-size: 1.5em; display: flex; align-items: center; gap: 10px; }
     .recommendation-item {
-        background: white;
-        padding: 15px 20px;
-        border-radius: 10px;
-        margin-bottom: 12px;
-        border-left: 4px solid #667eea;
-        font-size: 1.05em;
-        line-height: 1.4;
+      background: white; padding: 15px 20px; border-radius: 10px; margin-bottom: 12px; border-left: 4px solid #667eea; font-size: 1.05em; line-height: 1.4;
     }
-    
-    .roadmap-phase {
-        background: white;
-        border-radius: 12px;
-        padding: 25px;
-        margin-bottom: 20px;
-        border-left: 5px solid #667eea;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-    }
-    
-    .phase-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 15px;
-    }
-    
-    .phase-title {
-        font-weight: bold;
-        font-size: 1.3em;
-        color: #2c3e50;
-    }
-    
-    .phase-duration {
-        background: #667eea;
-        color: white;
-        padding: 5px 15px;
-        border-radius: 20px;
-        font-size: 0.9em;
-        font-weight: 500;
-    }
-    
-    .phase-tasks {
-        color: #666;
-        line-height: 1.6;
-    }
-    
-    .phase-tasks strong {
-        color: #2c3e50;
-    }
-    
-    .capabilities-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 15px;
-        margin: 20px 0;
-    }
-    
-    .capability-item {
-        display: flex;
-        align-items: center;
-        padding: 15px;
-        background: white;
-        border-radius: 10px;
-        gap: 10px;
-    }
-    
-    .capability-status {
-        width: 20px;
-        height: 20px;
-        border-radius: 50%;
-        flex-shrink: 0;
-    }
-    
-    .capability-available { background: #27ae60; }
-    .capability-unavailable { background: #e74c3c; }
-    
-    .data-sources {
-        margin: 25px 0;
-    }
-    
-    .source-category {
-        margin-bottom: 20px;
-    }
-    
-    .source-category h4 {
-        color: #2c3e50;
-        margin-bottom: 10px;
-        font-size: 1.2em;
-    }
-    
-    .source-item {
-        background: white;
-        padding: 12px 15px;
-        border-radius: 8px;
-        margin-bottom: 8px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 0.95em;
-    }
-    
-    .source-quality {
-        padding: 3px 10px;
-        border-radius: 15px;
-        font-size: 0.8em;
-        font-weight: 500;
-    }
-    
-    .quality-high { background: #d5f4e6; color: #27ae60; }
-    .quality-medium { background: #fff3cd; color: #f39c12; }
-    .quality-low { background: #ffebee; color: #e74c3c; }
-    
-    .download-section {
-        text-align: center;
-        margin: 40px 0;
-        padding: 30px;
-        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-        border-radius: 15px;
-    }
-    
-    .download-section h3 {
-        margin-bottom: 15px;
-        color: #2c3e50;
-    }
-    
-    .download-section p {
-        color: #666;
-        margin-bottom: 25px;
-        font-size: 1.1em;
-    }
-    
     .hidden { display: none; }
-    
     @media (max-width: 768px) {
-        body { padding: 10px; }
-        .content { padding: 25px 15px; }
-        .summary-grid { grid-template-columns: repeat(2, 1fr); }
-        .readiness-score { font-size: 3em; }
-        .capabilities-grid { grid-template-columns: 1fr; }
-        .phase-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+      body { padding: 10px; }
+      .content { padding: 25px 15px; }
+      .summary-grid { grid-template-columns: repeat(2, 1fr); }
+      .readiness-score { font-size: 3em; }
     }
-</style>
-```
-
+  </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>🤖 Professional Betting Bot Analyzer</h1>
-            <p>Complete SportMonks API analysis for building successful betting prediction bots</p>
-        </div>
-
-```
-    <div class="content">
-        <form id="analysisForm">
-            <div class="form-group">
-                <label for="apiToken">SportMonks API Token</label>
-                <input type="text" id="apiToken" placeholder="Enter your SportMonks API token..." required 
-                       autocomplete="off" spellcheck="false">
-            </div>
-            
-            <button type="submit" class="btn btn-primary" id="startBtn">
-                🚀 Start Complete Analysis
-            </button>
-        </form>
-        
-        <div id="progressSection" class="hidden">
-            <div class="progress">
-                <div class="progress-bar" id="progressBar"></div>
-            </div>
-            <div class="status testing" id="statusText">
-                Preparing comprehensive betting analysis...
-            </div>
-        </div>
-        
-        <div id="resultsSection" class="results hidden">
-            <div id="readinessCard" class="readiness-card">
-                <div class="readiness-title" id="readinessTitle">Analyzing...</div>
-                <div class="readiness-score" id="readinessScore">-</div>
-                <div id="readinessDescription">Complete analysis in progress...</div>
-            </div>
-            
-            <div class="summary-grid" id="summaryGrid">
-                <!-- Summary stats will be populated here -->
-            </div>
-            
-            <div class="section">
-                <h3>🎯 Betting Capabilities Assessment</h3>
-                <div class="capabilities-grid" id="capabilitiesGrid">
-                    <!-- Capabilities will be populated here -->
-                </div>
-            </div>
-            
-            <div class="section">
-                <h3>📊 Available Data Sources</h3>
-                <div class="data-sources" id="dataSourcesSection">
-                    <!-- Data sources will be populated here -->
-                </div>
-            </div>
-            
-            <div class="section">
-                <h3>📋 Strategic Recommendations</h3>
-                <div id="recommendationsList">Loading recommendations...</div>
-            </div>
-            
-            <div class="section">
-                <h3>🗺️ Implementation Roadmap</h3>
-                <div id="roadmapList">Loading roadmap...</div>
-            </div>
-            
-            <div class="section">
-                <h3>💰 Development Strategy</h3>
-                <div id="strategyDetails">Loading strategy...</div>
-            </div>
-            
-            <div class="download-section">
-                <h3>📄 Complete Analysis Report</h3>
-                <p>Download the comprehensive JSON report with all analysis data, recommendations, and technical specifications.</p>
-                <button class="btn btn-success" id="downloadBtn">
-                    📥 Download Complete Report
-                </button>
-            </div>
-        </div>
+  <div class="container">
+    <div class="header">
+      <h1>🤖 Professional Betting Bot Analyzer</h1>
+      <p>Complete SportMonks API analysis for building successful betting prediction bots</p>
     </div>
-</div>
 
-<script>
+    <div class="content">
+      <form id="analysisForm">
+        <div class="form-group">
+          <label for="apiToken">SportMonks API Token</label>
+          <input type="text" id="apiToken" placeholder="Enter your SportMonks API token..." required autocomplete="off" spellcheck="false"/>
+        </div>
+        <button type="submit" class="btn btn-primary" id="startBtn">🚀 Start Complete Analysis</button>
+      </form>
+
+      <div id="progressSection" class="hidden">
+        <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+        <div class="status testing" id="statusText">Preparing comprehensive betting analysis...</div>
+      </div>
+
+      <div id="resultsSection" class="results hidden">
+        <div id="readinessCard" class="readiness-card">
+          <div class="readiness-title" id="readinessTitle">Analyzing...</div>
+          <div class="readiness-score" id="readinessScore">-</div>
+          <div id="readinessDescription">Complete analysis in progress...</div>
+        </div>
+
+        <div class="summary-grid" id="summaryGrid"></div>
+
+        <div class="section">
+          <h3>📋 Endpoint Results</h3>
+          <div id="resultList"></div>
+        </div>
+
+        <div class="section">
+          <h3>🆔 Discovered IDs</h3>
+          <pre id="discoveredIds" style="background:white;border-radius:12px;padding:16px;box-shadow:0 5px 15px rgba(0,0,0,0.05);overflow:auto;"></pre>
+        </div>
+
+        <div class="section">
+          <h3>📄 Complete Analysis Report</h3>
+          <button class="btn btn-success" id="downloadBtn">📥 Download Complete Report</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
     let testInterval;
     let isTestRunning = false;
 
@@ -460,344 +137,173 @@
     document.getElementById('downloadBtn').addEventListener('click', downloadReport);
 
     async function startAnalysis(e) {
-        e.preventDefault();
-        
-        const apiToken = document.getElementById('apiToken').value.trim();
-        if (!apiToken || apiToken.length < 10) {
-            alert('Please enter a valid SportMonks API token (at least 10 characters)');
-            return;
-        }
-
-        try {
-            const response = await fetch('/api/start-analysis', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ api_token: apiToken })
-            });
-
-            const data = await response.json();
-            
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to start analysis');
-            }
-
-            isTestRunning = true;
-            document.getElementById('startBtn').disabled = true;
-            document.getElementById('startBtn').textContent = '🔄 Analysis Running...';
-            document.getElementById('progressSection').classList.remove('hidden');
-            
-            startProgressPolling();
-
-        } catch (error) {
-            alert('Error: ' + error.message);
-            document.getElementById('startBtn').disabled = false;
-            document.getElementById('startBtn').textContent = '🚀 Start Complete Analysis';
-        }
+      e.preventDefault();
+      const apiToken = document.getElementById('apiToken').value.trim();
+      if (!apiToken || apiToken.length < 10) {
+        alert('Please enter a valid SportMonks API token (at least 10 characters)');
+        return;
+      }
+      try {
+        const res = await fetch('/api/start-test', { // FIXED ROUTE
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ api_token: apiToken })
+        });
+        const data = await safeJson(res);
+        if (!res.ok) throw new Error(data?.error || 'Failed to start analysis');
+        isTestRunning = true;
+        document.getElementById('startBtn').disabled = true;
+        document.getElementById('startBtn').textContent = '🔄 Analysis Running...';
+        document.getElementById('progressSection').classList.remove('hidden');
+        startProgressPolling();
+      } catch (err) {
+        alert('Error: ' + err.message);
+        document.getElementById('startBtn').disabled = false;
+        document.getElementById('startBtn').textContent = '🚀 Start Complete Analysis';
+      }
     }
 
     function startProgressPolling() {
-        testInterval = setInterval(async () => {
-            try {
-                const response = await fetch('/api/progress');
-                const data = await response.json();
-                
-                updateProgress(data.progress);
-                
-                if (data.progress.status === 'completed') {
-                    clearInterval(testInterval);
-                    isTestRunning = false;
-                    await loadResults();
-                } else if (data.progress.status.includes('error')) {
-                    clearInterval(testInterval);
-                    isTestRunning = false;
-                    document.getElementById('statusText').textContent = 'Error: ' + data.progress.status;
-                    document.getElementById('statusText').className = 'status error';
-                    document.getElementById('startBtn').disabled = false;
-                    document.getElementById('startBtn').textContent = '🚀 Start Complete Analysis';
-                }
-            } catch (error) {
-                console.error('Error fetching progress:', error);
-            }
-        }, 1000);
+      testInterval = setInterval(async () => {
+        try {
+          const res = await fetch('/api/test-progress'); // FIXED ROUTE
+          const data = await safeJson(res);
+          updateProgress(data?.progress || { current: 0, total: 0, status: 'idle' });
+
+          if (data?.progress?.status === 'completed') {
+            clearInterval(testInterval);
+            isTestRunning = false;
+            await loadResults();
+          } else if (String(data?.progress?.status || '').includes('error')) {
+            clearInterval(testInterval);
+            isTestRunning = false;
+            document.getElementById('statusText').textContent = 'Error: ' + data.progress.status;
+            document.getElementById('statusText').className = 'status error';
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('startBtn').textContent = '🚀 Start Complete Analysis';
+          }
+        } catch (err) {
+          console.error('Error fetching progress:', err);
+        }
+      }, 1000);
     }
 
     function updateProgress(progress) {
-        const progressBar = document.getElementById('progressBar');
-        const statusText = document.getElementById('statusText');
-        
-        const percentage = progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
-        progressBar.style.width = percentage + '%';
-        
-        if (progress.status === 'running') {
-            statusText.textContent = `${progress.current_test} (${progress.current}/${progress.total})`;
-            statusText.className = 'status testing';
-        } else if (progress.status === 'completed') {
-            statusText.textContent = 'Complete professional analysis finished! 🎉';
-            statusText.className = 'status completed';
-        }
+      const progressBar = document.getElementById('progressBar');
+      const statusText = document.getElementById('statusText');
+      const pct = progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
+      progressBar.style.width = pct + '%';
+
+      if (progress.status === 'running') {
+        statusText.textContent = `${progress.current_test || 'Working...'} (${progress.current}/${progress.total})`;
+        statusText.className = 'status testing';
+      } else if (progress.status === 'completed') {
+        statusText.textContent = 'Complete professional analysis finished! 🎉';
+        statusText.className = 'status completed';
+      } else {
+        statusText.textContent = 'Idle';
+      }
     }
 
     async function loadResults() {
-        try {
-            const response = await fetch('/api/results');
-            const data = await response.json();
-            
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to load results');
-            }
-            
-            displayResults(data);
-            document.getElementById('resultsSection').classList.remove('hidden');
-            
-        } catch (error) {
-            console.error('Error loading results:', error);
-            alert('Error loading results: ' + error.message);
-        }
+      try {
+        const res = await fetch('/api/test-results'); // FIXED ROUTE
+        const data = await safeJson(res);
+        if (!res.ok) throw new Error(data?.error || 'Failed to load results');
+        displayResults(data);
+        document.getElementById('resultsSection').classList.remove('hidden');
+        document.getElementById('startBtn').disabled = false;
+        document.getElementById('startBtn').textContent = '🚀 Start Complete Analysis';
+      } catch (err) {
+        console.error('Error loading results:', err);
+        alert('Error loading results: ' + err.message);
+      }
     }
 
-    function displayResults(data) {
-        const analysis = data.analysis;
-        const summary = data.summary;
-        
-        // Update readiness card
-        const readinessLevel = analysis.executive_summary.readiness_level;
-        const readinessCard = document.getElementById('readinessCard');
-        readinessCard.className = `readiness-card readiness-${readinessLevel}`;
-        
-        document.getElementById('readinessTitle').textContent = analysis.executive_summary.overall_readiness;
-        document.getElementById('readinessScore').textContent = analysis.executive_summary.feasibility_score + '/100';
-        document.getElementById('readinessDescription').textContent = getReadinessDescription(readinessLevel);
-        
-        // Update summary grid
-        document.getElementById('summaryGrid').innerHTML = `
-            <div class="stat-card">
-                <div class="stat-value">${analysis.executive_summary.total_endpoints}</div>
-                <div class="stat-label">Endpoints Tested</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" style="color: #27ae60">${analysis.executive_summary.successful_endpoints}</div>
-                <div class="stat-label">Successful</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" style="color: #667eea">${analysis.executive_summary.critical_sources}</div>
-                <div class="stat-label">Critical Sources</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">${analysis.executive_summary.high_value_sources}</div>
-                <div class="stat-label">High Value Sources</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">${analysis.executive_summary.total_data_items.toLocaleString()}</div>
-                <div class="stat-label">Data Items</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">${summary.success_rate}%</div>
-                <div class="stat-label">Success Rate</div>
-            </div>
-        `;
-        
-        // Update capabilities
-        displayCapabilities(analysis.capabilities);
-        
-        // Update data sources
-        displayDataSources(analysis.data_sources);
-        
-        // Update recommendations
-        const recommendationsHTML = analysis.recommendations.map(rec => 
-            `<div class="recommendation-item">${rec}</div>`
-        ).join('');
-        document.getElementById('recommendationsList').innerHTML = recommendationsHTML;
-        
-        // Update roadmap
-        displayRoadmap(analysis.implementation_roadmap);
-        
-        // Update strategy
-        displayStrategy(analysis.development_strategy);
-    }
+    function displayResults(payload) {
+      const summary = payload?.summary || { total:0, successful:0, failed:0, success_rate:0, avg_response_time:0, total_data_items:0 };
+      const results = Array.isArray(payload?.results) ? payload.results : [];
+      const ids = payload?.discovered_ids || {};
 
-    function getReadinessDescription(level) {
-        const descriptions = {
-            'excellent': 'You have all the data needed for a professional-grade betting bot with advanced features.',
-            'good': 'You can build an effective betting bot with solid automation capabilities.',
-            'moderate': 'A basic betting assistant tool is possible with your current API access.',
-            'insufficient': 'API upgrade required for effective betting bot development.'
-        };
-        return descriptions[level] || 'Analysis complete.';
-    }
+      // Readiness (simple heuristic from success rate)
+      const sr = Number(summary.success_rate) || 0;
+      let level = 'insufficient';
+      if (sr >= 90) level = 'excellent';
+      else if (sr >= 70) level = 'good';
+      else if (sr >= 40) level = 'moderate';
 
-    function displayCapabilities(capabilities) {
-        const capabilityNames = {
-            'odds_access': 'Live Odds Data',
-            'predictions_access': 'AI Predictions',
-            'live_data': 'Live Match Data',
-            'fixture_data': 'Fixture Information',
-            'bookmaker_data': 'Bookmaker Directory',
-            'market_data': 'Betting Markets'
-        };
-        
-        const capabilitiesHTML = Object.entries(capabilities).map(([key, available]) => 
-            `<div class="capability-item">
-                <div class="capability-status ${available ? 'capability-available' : 'capability-unavailable'}"></div>
-                <span>${capabilityNames[key] || key}: ${available ? 'Available' : 'Not Available'}</span>
-            </div>`
-        ).join('');
-        
-        document.getElementById('capabilitiesGrid').innerHTML = capabilitiesHTML;
-    }
+      const readinessCard = document.getElementById('readinessCard');
+      readinessCard.className = `readiness-card readiness-${level}`;
+      document.getElementById('readinessTitle').textContent = level.toUpperCase();
+      document.getElementById('readinessScore').textContent = `${Math.round(sr)}/100`;
+      document.getElementById('readinessDescription').textContent =
+        level === 'excellent' ? 'You have robust coverage for a professional-grade bot.' :
+        level === 'good' ? 'Solid coverage. You can build an effective bot.' :
+        level === 'moderate' ? 'Basic bot possible; consider adding more endpoints.' :
+        'Coverage too thin—fix failing endpoints.';
 
-    function displayDataSources(dataSources) {
-        let html = '';
-        
-        if (dataSources.critical && dataSources.critical.length > 0) {
-            html += `
-                <div class="source-category">
-                    <h4>🎯 Critical Data Sources</h4>
-                    ${dataSources.critical.map(source => 
-                        `<div class="source-item">
-                            <span><strong>${source.name}</strong> (${source.data_count} items)</span>
-                            <span class="source-quality quality-high">${source.quality}/100</span>
-                        </div>`
-                    ).join('')}
-                </div>
-            `;
-        }
-        
-        if (dataSources.high_value && dataSources.high_value.length > 0) {
-            html += `
-                <div class="source-category">
-                    <h4>📊 High Value Sources</h4>
-                    ${dataSources.high_value.map(source => 
-                        `<div class="source-item">
-                            <span><strong>${source.name}</strong> (${source.data_count} items)</span>
-                            <span class="source-quality quality-medium">${source.quality || 'N/A'}</span>
-                        </div>`
-                    ).join('')}
-                </div>
-            `;
-        }
-        
-        if (dataSources.failed_critical && dataSources.failed_critical.length > 0) {
-            html += `
-                <div class="source-category">
-                    <h4>❌ Failed Critical Endpoints</h4>
-                    ${dataSources.failed_critical.map(source => 
-                        `<div class="source-item">
-                            <span><strong>${source.name}</strong></span>
-                            <span class="source-quality quality-low">${source.error}</span>
-                        </div>`
-                    ).join('')}
-                </div>
-            `;
-        }
-        
-        document.getElementById('dataSourcesSection').innerHTML = html || '<p>No data sources information available.</p>';
-    }
+      // Summary cards
+      document.getElementById('summaryGrid').innerHTML = `
+        <div class="stat-card"><div class="stat-value">${summary.total}</div><div class="stat-label">Endpoints Tested</div></div>
+        <div class="stat-card"><div class="stat-value" style="color:#27ae60">${summary.successful}</div><div class="stat-label">Successful</div></div>
+        <div class="stat-card"><div class="stat-value" style="color:#e74c3c">${summary.failed}</div><div class="stat-label">Failed</div></div>
+        <div class="stat-card"><div class="stat-value">${summary.success_rate}%</div><div class="stat-label">Success Rate</div></div>
+        <div class="stat-card"><div class="stat-value">${summary.avg_response_time}s</div><div class="stat-label">Avg. Response Time</div></div>
+        <div class="stat-card"><div class="stat-value">${(summary.total_data_items||0).toLocaleString()}</div><div class="stat-label">Data Items</div></div>
+      `;
 
-    function displayRoadmap(roadmap) {
-        if (!roadmap || roadmap.length === 0) {
-            document.getElementById('roadmapList').innerHTML = '<p>No roadmap available.</p>';
-            return;
-        }
-        
-        const roadmapHTML = roadmap.map(phase => 
-            `<div class="roadmap-phase">
-                <div class="phase-header">
-                    <div class="phase-title">Phase ${phase.phase}: ${phase.title}</div>
-                    <div class="phase-duration">${phase.weeks || phase.duration || 'TBD'}</div>
-                </div>
-                <div class="phase-tasks">
-                    ${Array.isArray(phase.tasks) ? 
-                        phase.tasks.map(task => `• ${task}`).join('<br>') :
-                        phase.tasks || 'No tasks specified'
-                    }
-                </div>
-            </div>`
-        ).join('');
-        
-        document.getElementById('roadmapList').innerHTML = roadmapHTML;
-    }
-
-    function displayStrategy(strategy) {
-        if (!strategy) {
-            document.getElementById('strategyDetails').innerHTML = '<p>No strategy information available.</p>';
-            return;
-        }
-        
-        let html = `
-            <div class="recommendation-item">
-                <strong>Approach:</strong> ${strategy.approach || 'Not specified'}
+      // Results list
+      const resultList = document.getElementById('resultList');
+      if (!results.length) {
+        resultList.innerHTML = '<p>No results yet.</p>';
+      } else {
+        resultList.innerHTML = results.map(r => {
+          const ok = r.success;
+          const color = ok ? '#27ae60' : '#e74c3c';
+          const msg = ok ? `${r.data_count} items` : (r.errors && r.errors[0]) || `HTTP ${r.status_code}`;
+          return `
+            <div class="recommendation-item" style="border-left-color:${color}">
+              <strong>${r.endpoint}</strong><br/>
+              Status: <span style="color:${color}">${ok ? 'OK' : 'Failed'}</span> — ${msg} — ${r.response_time.toFixed ? r.response_time.toFixed(2) : r.response_time}s
             </div>
-        `;
-        
-        if (strategy.timeline) {
-            html += `<div class="recommendation-item">
-                <strong>Timeline:</strong> ${strategy.timeline}
-            </div>`;
-        }
-        
-        if (strategy.tech_stack && strategy.tech_stack.length > 0) {
-            html += `<div class="recommendation-item">
-                <strong>Technology Stack:</strong> ${strategy.tech_stack.join(', ')}
-            </div>`;
-        }
-        
-        if (strategy.primary_markets && strategy.primary_markets.length > 0) {
-            html += `<div class="recommendation-item">
-                <strong>Primary Markets:</strong> ${strategy.primary_markets.join(', ')}
-            </div>`;
-        }
-        
-        if (strategy.estimated_cost) {
-            html += `<div class="recommendation-item">
-                <strong>Estimated Cost:</strong> ${strategy.estimated_cost}
-            </div>`;
-        }
-        
-        if (strategy.expected_roi) {
-            html += `<div class="recommendation-item">
-                <strong>Expected ROI:</strong> ${strategy.expected_roi}
-            </div>`;
-        }
-        
-        document.getElementById('strategyDetails').innerHTML = html;
+          `;
+        }).join('');
+      }
+
+      // Discovered IDs
+      document.getElementById('discoveredIds').textContent = JSON.stringify(ids, null, 2);
     }
 
     async function downloadReport() {
-        const button = document.getElementById('downloadBtn');
-        const originalText = button.textContent;
-        
-        button.disabled = true;
-        button.textContent = '📥 Generating Report...';
-        
-        try {
-            const response = await fetch('/api/download-report');
-            
-            if (response.ok) {
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `betting_bot_analysis_${new Date().toISOString().slice(0,10)}.json`;
-                a.click();
-                window.URL.revokeObjectURL(url);
-                
-                button.textContent = '✅ Downloaded!';
-                setTimeout(() => {
-                    button.textContent = originalText;
-                    button.disabled = false;
-                }, 3000);
-            } else {
-                const data = await response.json();
-                throw new Error(data.error || 'Failed to download report');
-            }
-        } catch (error) {
-            alert('Error downloading report: ' + error.message);
-            button.textContent = originalText;
-            button.disabled = false;
+      const button = document.getElementById('downloadBtn');
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = '📥 Generating Report...';
+      try {
+        const res = await fetch('/api/download-report');
+        if (!res.ok) {
+          const data = await safeJson(res);
+          throw new Error(data?.error || 'Failed to download report');
         }
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `sportmonks_test_results_${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        button.textContent = '✅ Downloaded!';
+        setTimeout(() => { button.textContent = originalText; button.disabled = false; }, 2000);
+      } catch (err) {
+        alert('Error downloading report: ' + err.message);
+        button.textContent = originalText;
+        button.disabled = false;
+      }
     }
-</script>
-```
 
+    async function safeJson(res) {
+      try { return await res.json(); } catch { return null; }
+    }
+  </script>
 </body>
 </html>
