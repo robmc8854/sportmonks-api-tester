@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SportMonks API Tester</title>
+    <title>SportMonks Betting Bot Data Analyzer</title>
     <style>
         * {
             box-sizing: border-box;
@@ -22,7 +22,7 @@
     }
     
     .container {
-        max-width: 600px;
+        max-width: 800px;
         margin: 0 auto;
         background: white;
         border-radius: 20px;
@@ -87,6 +87,7 @@
         transition: all 0.3s ease;
         text-transform: uppercase;
         letter-spacing: 0.5px;
+        margin-bottom: 10px;
     }
     
     .btn-primary {
@@ -94,10 +95,19 @@
         color: white;
     }
     
+    .btn-success {
+        background: linear-gradient(135deg, #2ecc71, #27ae60);
+        color: white;
+    }
+    
+    .btn-warning {
+        background: linear-gradient(135deg, #f39c12, #e67e22);
+        color: white;
+    }
+    
     .btn-danger {
         background: linear-gradient(135deg, #ff6b6b, #ee5a52);
         color: white;
-        margin-top: 10px;
     }
     
     .btn:hover {
@@ -180,6 +190,61 @@
         margin-top: 5px;
     }
     
+    .betting-analysis {
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 12px;
+        padding: 20px;
+        margin: 20px 0;
+    }
+    
+    .betting-analysis h3 {
+        color: #856404;
+        margin-bottom: 15px;
+    }
+    
+    .readiness-badge {
+        display: inline-block;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-weight: bold;
+        text-transform: uppercase;
+        font-size: 0.8em;
+    }
+    
+    .readiness-excellent {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    .readiness-good {
+        background: #cce7ff;
+        color: #004085;
+    }
+    
+    .readiness-moderate {
+        background: #fff3cd;
+        color: #856404;
+    }
+    
+    .readiness-insufficient {
+        background: #f8d7da;
+        color: #721c24;
+    }
+    
+    .recommendations {
+        margin-top: 15px;
+    }
+    
+    .recommendation {
+        padding: 8px 0;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .recommendation:last-child {
+        border-bottom: none;
+    }
+    
     .endpoint-result {
         background: white;
         border: 1px solid #e0e6ed;
@@ -200,6 +265,12 @@
     .endpoint-name {
         font-weight: 600;
         color: #2c3e50;
+    }
+    
+    .endpoint-category {
+        font-size: 0.8em;
+        color: #666;
+        font-style: italic;
     }
     
     .status-badge {
@@ -231,6 +302,15 @@
         margin-bottom: 8px;
     }
     
+    .betting-relevant {
+        background: #e8f5e8;
+        color: #2e7d32;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.7em;
+        font-weight: bold;
+    }
+    
     .download-section {
         margin-top: 30px;
         text-align: center;
@@ -238,6 +318,33 @@
     
     .hidden {
         display: none;
+    }
+    
+    .tabs {
+        display: flex;
+        margin-bottom: 20px;
+        border-bottom: 2px solid #e0e6ed;
+    }
+    
+    .tab {
+        padding: 12px 20px;
+        cursor: pointer;
+        border-bottom: 3px solid transparent;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    
+    .tab.active {
+        border-bottom-color: #667eea;
+        color: #667eea;
+    }
+    
+    .tab-content {
+        display: none;
+    }
+    
+    .tab-content.active {
+        display: block;
     }
     
     @media (max-width: 480px) {
@@ -252,6 +359,17 @@
         .summary {
             grid-template-columns: repeat(2, 1fr);
         }
+        
+        .tabs {
+            flex-wrap: wrap;
+        }
+        
+        .tab {
+            flex: 1;
+            min-width: 120px;
+            text-align: center;
+            font-size: 0.9em;
+        }
     }
 </style>
 ```
@@ -260,8 +378,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>⚽ SportMonks API Tester</h1>
-            <p>Test betting endpoints from your mobile device</p>
+            <h1>🤖 SportMonks Betting Bot Analyzer</h1>
+            <p>Comprehensive API testing for betting prediction bot development</p>
         </div>
 
 ```
@@ -273,11 +391,11 @@
             </div>
             
             <button type="submit" class="btn btn-primary" id="startBtn">
-                Start API Tests
+                🚀 Start Comprehensive Analysis
             </button>
             
             <button type="button" class="btn btn-danger hidden" id="stopBtn">
-                Stop Testing
+                ⏹️ Stop Testing
             </button>
         </form>
         
@@ -286,17 +404,42 @@
                 <div class="progress-bar" id="progressBar"></div>
             </div>
             <div class="status testing" id="statusText">
-                Preparing tests...
+                Preparing comprehensive betting analysis...
             </div>
         </div>
         
         <div id="resultsSection" class="results hidden">
             <div class="summary" id="summaryStats"></div>
-            <div id="endpointResults"></div>
+            
+            <div id="bettingAnalysisSection" class="betting-analysis hidden">
+                <h3>🎯 Betting Bot Readiness Analysis</h3>
+                <div id="bettingAnalysisContent"></div>
+            </div>
+            
+            <div class="tabs">
+                <div class="tab active" data-tab="overview">📊 Overview</div>
+                <div class="tab" data-tab="endpoints">🔍 Endpoints</div>
+                <div class="tab" data-tab="roadmap">🗺️ Roadmap</div>
+            </div>
+            
+            <div class="tab-content active" id="overview">
+                <div id="overviewContent"></div>
+            </div>
+            
+            <div class="tab-content" id="endpoints">
+                <div id="endpointResults"></div>
+            </div>
+            
+            <div class="tab-content" id="roadmap">
+                <div id="roadmapContent"></div>
+            </div>
             
             <div class="download-section">
-                <button class="btn btn-primary" id="downloadBtn">
-                    📄 Download Report
+                <button class="btn btn-success" id="analysisBtn">
+                    🤖 Generate Betting Bot Analysis
+                </button>
+                <button class="btn btn-warning" id="downloadBtn">
+                    📄 Download Complete Report
                 </button>
             </div>
         </div>
@@ -310,6 +453,22 @@
     document.getElementById('testForm').addEventListener('submit', startTest);
     document.getElementById('stopBtn').addEventListener('click', stopTest);
     document.getElementById('downloadBtn').addEventListener('click', downloadReport);
+    document.getElementById('analysisBtn').addEventListener('click', generateBettingAnalysis);
+
+    // Tab functionality
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+    });
+
+    function switchTab(tabName) {
+        // Remove active class from all tabs and content
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        
+        // Add active class to selected tab and content
+        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+        document.getElementById(tabName).classList.add('active');
+    }
 
     async function startTest(e) {
         e.preventDefault();
@@ -398,7 +557,7 @@
             statusText.textContent = `Testing ${progress.current_test || 'endpoint'} (${progress.current}/${progress.total})`;
             statusText.className = 'status testing';
         } else if (progress.status === 'completed') {
-            statusText.textContent = 'Tests completed successfully!';
+            statusText.textContent = 'Comprehensive analysis completed! Generate betting bot analysis below.';
             statusText.className = 'status completed';
         } else if (progress.status.includes('error')) {
             statusText.textContent = 'Error: ' + progress.status;
@@ -427,7 +586,7 @@
         document.getElementById('summaryStats').innerHTML = `
             <div class="stat-card">
                 <div class="stat-value">${summary.total || 0}</div>
-                <div class="stat-label">Total Tests</div>
+                <div class="stat-label">Total Endpoints</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value" style="color: #2e7d32">${summary.successful || 0}</div>
@@ -441,59 +600,163 @@
                 <div class="stat-value">${summary.success_rate || 0}%</div>
                 <div class="stat-label">Success Rate</div>
             </div>
+            <div class="stat-card">
+                <div class="stat-value">${summary.total_data_items || 0}</div>
+                <div class="stat-label">Data Records</div>
+            </div>
         `;
         
-        // Display individual results
-        const resultsHTML = results.map(result => `
-            <div class="endpoint-result">
-                <div class="endpoint-header">
-                    <div class="endpoint-name">${result.endpoint}</div>
-                    <div class="status-badge ${result.success ? 'status-success' : 'status-error'}">
-                        ${result.success ? 'Success' : 'Failed'}
+        // Display individual results grouped by category
+        const groupedResults = {};
+        results.forEach(result => {
+            const category = result.endpoint.includes('Odds') ? 'Odds Data' :
+                            result.endpoint.includes('Prediction') ? 'Prediction Data' :
+                            result.endpoint.includes('Fixture') ? 'Fixture Data' :
+                            result.endpoint.includes('Live') ? 'Live Data' :
+                            result.endpoint.includes('Market') ? 'Markets & Bookmakers' : 'Other';
+            
+            if (!groupedResults[category]) groupedResults[category] = [];
+            groupedResults[category].push(result);
+        });
+        
+        let resultsHTML = '';
+        Object.keys(groupedResults).forEach(category => {
+            resultsHTML += `<h3 style="margin: 20px 0 10px 0; color: #2c3e50;">${category}</h3>`;
+            groupedResults[category].forEach(result => {
+                const bettingRelevant = result.data_structure?.betting_relevant ? 
+                    '<span class="betting-relevant">BETTING RELEVANT</span>' : '';
+                
+                resultsHTML += `
+                    <div class="endpoint-result">
+                        <div class="endpoint-header">
+                            <div>
+                                <div class="endpoint-name">${result.endpoint}</div>
+                                <div class="endpoint-category">${category}</div>
+                            </div>
+                            <div>
+                                ${bettingRelevant}
+                                <div class="status-badge ${result.success ? 'status-success' : 'status-error'}">
+                                    ${result.success ? 'Success' : 'Failed'}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="endpoint-details">
+                            <div class="detail-row">
+                                <span>Status Code:</span>
+                                <span>${result.status_code}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span>Response Time:</span>
+                                <span>${result.response_time.toFixed(2)}s</span>
+                            </div>
+                            <div class="detail-row">
+                                <span>Data Count:</span>
+                                <span>${result.data_count}</span>
+                            </div>
+                            ${result.errors.length > 0 ? `
+                            <div class="detail-row">
+                                <span>Errors:</span>
+                                <span style="color: #c62828">${result.errors.join(', ')}</span>
+                            </div>
+                            ` : ''}
+                            ${result.data_structure?.key_fields?.length > 0 ? `
+                            <div class="detail-row">
+                                <span>Key Fields:</span>
+                                <span>${result.data_structure.key_fields.join(', ')}</span>
+                            </div>
+                            ` : ''}
+                        </div>
                     </div>
-                </div>
-                <div class="endpoint-details">
-                    <div class="detail-row">
-                        <span>Status Code:</span>
-                        <span>${result.status_code}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span>Response Time:</span>
-                        <span>${result.response_time.toFixed(2)}s</span>
-                    </div>
-                    <div class="detail-row">
-                        <span>Data Count:</span>
-                        <span>${result.data_count}</span>
-                    </div>
-                    ${result.errors.length > 0 ? `
-                    <div class="detail-row">
-                        <span>Errors:</span>
-                        <span style="color: #c62828">${result.errors.join(', ')}</span>
-                    </div>
-                    ` : ''}
-                </div>
+                `;
+            });
+        });
+        
+        document.getElementById('endpointResults').innerHTML = resultsHTML;
+    }
+
+    async function generateBettingAnalysis() {
+        try {
+            const response = await fetch('/api/betting-analysis');
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to generate analysis');
+            }
+            
+            displayBettingAnalysis(data.betting_analysis, data.bot_report);
+            document.getElementById('bettingAnalysisSection').classList.remove('hidden');
+            
+        } catch (error) {
+            alert('Error generating betting analysis: ' + error.message);
+        }
+    }
+
+    function displayBettingAnalysis(analysis, report) {
+        const readinessClass = `readiness-${analysis.bot_readiness}`;
+        
+        document.getElementById('bettingAnalysisContent').innerHTML = `
+            <div style="margin-bottom: 20px;">
+                <strong>Bot Readiness:</strong> 
+                <span class="readiness-badge ${readinessClass}">${analysis.bot_readiness}</span>
+                <span style="margin-left: 10px;">Score: ${analysis.data_quality_score}/100</span>
+            </div>
+            
+            <div class="recommendations">
+                <h4>🎯 Key Recommendations:</h4>
+                ${analysis.bot_recommendations.map(rec => `
+                    <div class="recommendation">${rec}</div>
+                `).join('')}
+            </div>
+        `;
+        
+        // Update overview tab
+        document.getElementById('overviewContent').innerHTML = `
+            <h3>📋 Executive Summary</h3>
+            <p><strong>Bot Feasibility:</strong> ${report.executive_summary.bot_feasibility}</p>
+            <p><strong>Data Quality Score:</strong> ${report.executive_summary.data_quality_score}</p>
+            <p><strong>Critical Requirements Met:</strong> ${report.executive_summary.critical_requirements_met}/5</p>
+            
+            <h3 style="margin-top: 20px;">🏗️ Available Infrastructure</h3>
+            <p><strong>Bookmakers:</strong> ${report.betting_infrastructure.available_bookmakers}</p>
+            <p><strong>Markets:</strong> ${report.betting_infrastructure.available_markets}</p>
+            <p><strong>Today's Fixtures:</strong> ${report.betting_infrastructure.todays_fixtures}</p>
+            <p><strong>Future Fixtures:</strong> ${report.betting_infrastructure.future_fixtures}</p>
+        `;
+        
+        // Update roadmap tab
+        const roadmapHTML = report.bot_development_roadmap.map(phase => `
+            <div style="margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 8px;">
+                <h4>Phase ${phase.phase}: ${phase.title}</h4>
+                <p><strong>Estimated Time:</strong> ${phase.estimated_time}</p>
+                <ul style="margin-top: 10px;">
+                    ${phase.tasks.map(task => `<li>${task}</li>`).join('')}
+                </ul>
             </div>
         `).join('');
         
-        document.getElementById('endpointResults').innerHTML = resultsHTML;
+        document.getElementById('roadmapContent').innerHTML = `
+            <h3>🗺️ Development Roadmap</h3>
+            ${roadmapHTML}
+        `;
     }
 
     async function downloadReport() {
         try {
             const response = await fetch('/api/download-report');
-            const data = await response.json();
             
-            if (response.ok && data.data) {
-                const blob = new Blob([data.data], { type: 'application/json' });
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'sportmonks_test_results.json';
-                a.click();
-                window.URL.revokeObjectURL(url);
-            } else {
+            if (!response.ok) {
+                const data = await response.json();
                 throw new Error(data.error || 'Failed to download report');
             }
+            
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'sportmonks_betting_bot_analysis.json';
+            a.click();
+            window.URL.revokeObjectURL(url);
+            
         } catch (error) {
             alert('Error downloading report: ' + error.message);
         }
