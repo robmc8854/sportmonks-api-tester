@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """
-SportMonks v3 API Web Tester - Enhanced + Safe Predictions
-- Keeps your async endpoint smoke tests (unchanged)
-- Adds fixture drill-down + odds analysis
-- Adds: in-memory caching, bookmaker filtering, implied probs + fairizing,
-        baseline 1X2 + Over/Under predictions, Kelly fraction, clean fallbacks
-- New route: /api/predictions (non-breaking – everything else stays the same)
+SportMonks v3 API Web Tester - Data Maximizer (safe, non-breaking)
+- Keeps existing tester + routes intact
+- Adds robust odds fallbacks, retries, pagination
+- Adds in-play pulse (live odds + events snapshot)
+- Adds predictions (1X2, OU) with fairising + Kelly (¼)
 """
 
 import requests
@@ -17,7 +16,10 @@ from typing import Dict, List, Optional, Any, Tuple
 import os
 from dataclasses import dataclass, asdict, field
 from flask import Flask, render_template, jsonify, request, send_file
+from flask_cors import CORS
 import io
+import random
+from urllib.parse import urlencode, urlparse, parse_qs, urlunparse
 
 # -------------------- Data models --------------------
 
@@ -50,23 +52,23 @@ class FixtureDetail:
     name: Optional[str]
     starting_at: Optional[str]
     has_odds: bool
-    includes_present: Dict[str, bool]  # participants/scores/state/venue/league/weatherreport/lineups/stats/events/odds
-    markets_available: Dict[str, bool] # {"FT_1X2": bool, "OU": bool}
+    includes_present: Dict[str, bool]
+    markets_available: Dict[str, bool]
     bookmaker_count: int
     odds_count: int
     overround_ft_1x2: Optional[float] = None
-    completeness_score: int = 0  # 0-100
+    completeness_score: int = 0
 
 @dataclass
 class Selection:
-    market: str               # "1X2" or "OU 2.5"
-    pick: str                 # "Home", "Draw", "Away" / "Over 2.5" / "Under 2.5"
-    odds: float               # decimal odds
-    implied_prob: float       # raw implied prob from odds (0..1)
-    fair_prob: float          # fair probability after de-overround (0..1)
-    model_prob: float         # same as fair_prob for now
-    edge: float               # model_prob - (1/odds)
-    kelly_fraction: float     # Kelly f*, we’ll apply a safety fraction elsewhere
+    market: str
+    pick: str
+    odds: float
+    implied_prob: float
+    fair_prob: float
+    model_prob: float
+    edge: float
+    kelly_fraction: float
     bookmaker_id: Optional[int] = None
     notes: Optional[str] = None
 
@@ -108,36 +110,100 @@ class SportMonksWebTester:
         self.session.params = {"api_token": api_token}
         self.session.headers.update({"Accept": "application/json"})
 
-        # Discovered data
         self.discovered_ids = {
-            'fixture_id': None,
-            'league_id': None,
-            'season_id': None,
-            'team_id': None,
-            'player_id': None,
-            'bookmaker_id': None,
-            'market_id': None,
-            'round_id': None,
-            'stage_id': None
+            'fixture_id': None, 'league_id': None, 'season_id': None, 'team_id': None,
+            'player_id': None, 'bookmaker_id': None, 'market_id': None, 'round_id': None, 'stage_id': None
         }
         self.discovered_fixture_ids: List[int] = []
 
-        # Results / state
         self.test_results: List[TestResult] = []
         self.fixture_details: List[FixtureDetail] = []
         self.testing_progress = {'current': 0, 'total': 0, 'status': 'idle', 'current_test': ''}
         self.is_testing = False
 
-        # Cache + tunables
         self.cache = SimpleCache()
         self.prediction_settings = {
-            "bookmaker_allowlist": None,   # e.g., [2, 8, 11] or None for all
-            "min_edge": 0.03,              # 3% min edge
-            "kelly_fraction": 0.25,        # use quarter-Kelly for safety
+            "bookmaker_allowlist": None,  # e.g., [2, 8, 11]
+            "min_edge": 0.03,
+            "kelly_fraction": 0.25,
             "ou_target_line": 2.5
         }
 
-    # ------------- Endpoint definitions -------------
+    # ---------- helpers: backoff, pagination, robust GET ----------
+    def _sleep_backoff(self, attempt: int):
+        time.sleep(min(1.6, (0.2 * (2 ** attempt)) + random.uniform(0, 0.1)))
+
+    def _join_params(self, url: str, extra: Dict[str, str]) -> str:
+        u = urlparse(url)
+        q = parse_qs(u.query)
+        for k, v in extra.items():
+            q[k] = [str(v)]
+        new_q = urlencode({k: v[0] for k, v in q.items()})
+        return urlunparse((u.scheme, u.netloc, u.path, u.params, new_q, u.fragment))
+
+    def _get_once(self, url: str, timeout=20) -> Tuple[int, Any, float, Optional[str]]:
+        cached = self.cache.get(url)
+        if cached:
+            return cached
+        start = time.time()
+        try:
+            r = self.session.get(url, timeout=timeout)
+            elapsed = time.time() - start
+            try:
+                j = r.json()
+            except Exception:
+                j = None
+            result = (r.status_code, j, elapsed, None)
+        except Exception as e:
+            result = (0, None, time.time() - start, str(e)[:200])
+        self.cache.set(url, result, ttl_seconds=30)
+        return result
+
+    def _fetch_all_pages(self, url: str, max_pages: int = 5) -> Tuple[int, Any, float, Optional[str]]:
+        merged = []
+        status_code, body, elapsed, err = self._get_once(url)
+        if err or status_code != 200 or not isinstance(body, dict):
+            return status_code, body, elapsed, err
+        data = body.get("data")
+        meta = body.get("meta") or {}
+        merged.extend(data if isinstance(data, list) else ([data] if data else []))
+        total_time = elapsed
+
+        current_page = int(meta.get("current_page") or 1)
+        last_page = int(meta.get("last_page") or 1)
+        if last_page <= current_page:
+            return status_code, {"data": merged, "meta": meta}, total_time, None
+
+        for page in range(current_page + 1, min(last_page, max_pages) + 1):
+            next_url = self._join_params(url, {"page": page})
+            sc, b, el, e = self._get_once(next_url)
+            total_time += el
+            if e or sc != 200 or not isinstance(b, dict):
+                break
+            d = b.get("data")
+            merged.extend(d if isinstance(d, list) else ([d] if d else []))
+        return 200, {"data": merged, "meta": meta}, total_time, None
+
+    def _get(self, url: str, timeout=20, paginated=False) -> Tuple[int, Any, float, Optional[str]]:
+        cache_key = ("PAGINATED:" if paginated else "SINGLE:") + url
+        cached = self.cache.get(cache_key)
+        if cached:
+            return cached
+        attempts = 0
+        last = (0, None, 0.0, "No attempt")
+        while attempts < 4:
+            res = self._fetch_all_pages(url) if paginated else self._get_once(url, timeout=timeout)
+            status, body, elapsed, err = res
+            last = res
+            transient = status in (429, 502, 503, 504) or (status == 200 and body is None)
+            if not transient:
+                break
+            attempts += 1
+            self._sleep_backoff(attempts)
+        self.cache.set(cache_key, last, ttl_seconds=30)
+        return last
+
+    # ---------- endpoints setup ----------
     def setup_test_endpoints(self) -> List[EndpointTest]:
         today = datetime.now().strftime('%Y-%m-%d')
         endpoints = [
@@ -176,33 +242,7 @@ class SportMonksWebTester:
         ]
         return endpoints
 
-    # ------------- Helpers -------------
-    def _analyze_structure(self, data: Any) -> Dict:
-        if isinstance(data, dict):
-            return {"type": "dict", "key_count": len(data), "sample_keys": list(data.keys())[:5]}
-        elif isinstance(data, list):
-            return {"type": "list", "length": len(data), "item_type": type(data[0]).__name__ if data else "unknown"}
-        else:
-            return {"type": type(data).__name__, "sample": str(data)[:50]}
-
-    def _get(self, url: str, timeout=20) -> Tuple[int, Any, float, Optional[str]]:
-        cached = self.cache.get(url)
-        if cached:
-            return cached
-        start = time.time()
-        try:
-            r = self.session.get(url, timeout=timeout)
-            elapsed = time.time() - start
-            try:
-                j = r.json()
-            except Exception:
-                j = None
-            result = (r.status_code, j, elapsed, None)
-        except Exception as e:
-            result = (0, None, time.time() - start, str(e)[:200])
-        self.cache.set(url, result, ttl_seconds=30)
-        return result
-
+    # ---------- discovery ----------
     def _collect_fixtures(self, response_data: Dict):
         if not response_data or 'data' not in response_data:
             return
@@ -218,16 +258,15 @@ class SportMonksWebTester:
             if isinstance(item, dict) and 'league_id' in item and self.discovered_ids['league_id'] is None:
                 self.discovered_ids['league_id'] = str(item.get('league_id'))
 
-    # ------------- Core test runner -------------
+    # ---------- single endpoint test ----------
     def test_single_endpoint(self, endpoint: EndpointTest) -> TestResult:
-        status_code, body, response_time, err = self._get(endpoint.url)
+        paginated = endpoint.name in ("All Bookmakers", "All Markets")
+        status_code, body, response_time, err = self._get(endpoint.url, paginated=paginated)
 
         if err or status_code != 200:
-            return TestResult(
-                endpoint=endpoint.name, status_code=status_code, success=False,
-                data_count=0, response_time=response_time, data_structure={},
-                sample_data={}, errors=[err or f"HTTP {status_code}"], warnings=[]
-            )
+            return TestResult(endpoint=endpoint.name, status_code=status_code, success=False,
+                              data_count=0, response_time=response_time, data_structure={},
+                              sample_data={}, errors=[err or f"HTTP {status_code}"], warnings=[])
 
         if endpoint.name == "Today's Fixtures":
             self._collect_fixtures(body)
@@ -247,45 +286,133 @@ class SportMonksWebTester:
                 data_count = 1
                 sample_data = data
 
-        return TestResult(
-            endpoint=endpoint.name, status_code=status_code, success=True,
-            data_count=data_count, response_time=response_time,
-            data_structure=self._analyze_structure(body), sample_data=sample_data,
-            errors=[], warnings=[]
-        )
+        return TestResult(endpoint=endpoint.name, status_code=status_code, success=True,
+                          data_count=data_count, response_time=response_time,
+                          data_structure=self._analyze_structure(body), sample_data=sample_data,
+                          errors=[], warnings=[])
 
-    # ------------- Drill-down: fixture details + odds -------------
-    def fetch_fixture_detail(self, fixture_id: int) -> FixtureDetail:
+    def _analyze_structure(self, data: Any) -> Dict:
+        if isinstance(data, dict):
+            return {"type": "dict", "key_count": len(data), "sample_keys": list(data.keys())[:5]}
+        elif isinstance(data, list):
+            return {"type": "list", "length": len(data), "item_type": type(data[0]).__name__ if data else "unknown"}
+        else:
+            return {"type": type(data).__name__, "sample": str(data)[:50]}
+
+    # ---------- robust odds + details pull ----------
+    def _normalize_1x2_label(self, label: str) -> Optional[str]:
+        lab = (label or "").strip().lower()
+        if lab in ("1","home","home win","local","localteam","home team"): return "Home"
+        if lab in ("x","draw","tie"): return "Draw"
+        if lab in ("2","away","away win","visitor","visitorteam","away team"): return "Away"
+        if "home" in lab or "local" in lab: return "Home"
+        if "away" in lab or "visitor" in lab: return "Away"
+        if "draw" in lab: return "Draw"
+        return None
+
+    def _looks_like_ou_25(self, label: str) -> Optional[str]:
+        if not label: return None
+        lab = label.lower().replace(" ", "")
+        target = str(self.prediction_settings["ou_target_line"]).replace(".", "")
+        if ("over" in lab or lab.startswith("o")) and ("25" in lab or target in lab): return "Over 2.5"
+        if ("under" in lab or lab.startswith("u")) and ("25" in lab or target in lab): return "Under 2.5"
+        return None
+
+    def _extract_odds_from_nodes(self, odds_nodes: List[Dict]) -> Dict[str, Any]:
+        best_1x2 = {"Home": None, "Draw": None, "Away": None}
+        best_1x2_bm = {"Home": None, "Draw": None, "Away": None}
+        ou_candidates = []
+        seen_bookmakers = set()
+        allow = self.prediction_settings["bookmaker_allowlist"]
+
+        for o in odds_nodes or []:
+            bm_id = o.get("bookmaker_id")
+            if allow and bm_id not in allow:
+                continue
+            if bm_id: seen_bookmakers.add(bm_id)
+
+            market_id = o.get("market_id")
+            price = o.get("value")
+            label = (o.get("label") or o.get("name") or "").strip()
+
+            if market_id == 1 and price and label:
+                key = self._normalize_1x2_label(label)
+                if key:
+                    try:
+                        dec = float(price)
+                        prev = best_1x2.get(key)
+                        if prev is None or dec > prev:
+                            best_1x2[key] = dec
+                            best_1x2_bm[key] = bm_id
+                    except:
+                        pass
+
+            if market_id == 80 and price and label:
+                pick = self._looks_like_ou_25(label)
+                if pick:
+                    try:
+                        dec = float(price)
+                        ou_candidates.append((pick, dec, bm_id, label))
+                    except:
+                        pass
+
+        return {
+            "best_1x2": best_1x2,
+            "best_1x2_bm": best_1x2_bm,
+            "ou_candidates": ou_candidates,
+            "bookmaker_count": len(seen_bookmakers)
+        }
+
+    def _try_fixture_includes(self, fixture_id: int) -> Dict[str, Any]:
         includes = ",".join([
             "participants", "scores", "state", "venue", "league", "weatherreport",
             "lineups.player", "statistics.type", "events", "odds"
         ])
         url = f"{self.base_url}/fixtures/{fixture_id}?include={includes}"
         status, body, _, _ = self._get(url)
+        return {"status": status, "body": body, "source": "fixtures_include"}
 
-        includes_present = {
-            "participants": False, "scores": False, "state": False, "venue": False, "league": False,
-            "weatherreport": False, "lineups": False, "stats": False, "events": False, "odds": False
-        }
+    def _try_odds_fallbacks(self, fixture_id: int) -> Optional[Dict[str, Any]]:
+        # We try a few likely variants; accept first that returns data array-like under "data"
+        variants = [
+            f"{self.odds_base_url}/fixtures/{fixture_id}",
+            f"{self.odds_base_url}/fixture/{fixture_id}",
+            f"{self.base_url}/odds/fixture/{fixture_id}",
+        ]
+        for url in variants:
+            status, body, _, _ = self._get(url)
+            if status == 200 and isinstance(body, dict) and ("data" in body):
+                data = body.get("data")
+                if data:
+                    return {"status": status, "body": body, "source": url}
+        return None
+
+    def fetch_fixture_detail(self, fixture_id: int) -> FixtureDetail:
+        # 1) Try rich includes
+        inc = self._try_fixture_includes(fixture_id)
+
+        includes_present = {k: False for k in
+            ["participants","scores","state","venue","league","weatherreport","lineups","stats","events","odds"]}
         markets_available = {"FT_1X2": False, "OU": False}
         bookmaker_count = 0
         odds_count = 0
-        name = None
-        league_id = None
-        starting_at = None
+        name = league_id = starting_at = None
         has_odds_flag = False
         overround_ft = None
 
-        if status == 200 and isinstance(body, dict):
-            d = body.get("data") or {}
+        nodes_from_include = []
+        rel = {}
+
+        if inc["status"] == 200 and isinstance(inc["body"], dict):
+            d = (inc["body"] or {}).get("data") or {}
             name = d.get("name")
             league_id = d.get("league_id")
             starting_at = d.get("starting_at")
             has_odds_flag = bool(d.get("has_odds"))
-
             rel = d.get("relationships") or {}
-            def present(rel_name):
-                node = rel.get(rel_name) or {}
+
+            def present(rn): 
+                node = rel.get(rn) or {}
                 return bool(node.get("data") or node.get("data", []) or node.get("data", {}))
 
             includes_present["participants"] = present("participants")
@@ -299,67 +426,45 @@ class SportMonksWebTester:
             includes_present["events"] = present("events")
             includes_present["odds"] = present("odds")
 
-            odds_nodes = rel.get("odds", {}).get("data") or []
-            odds_count = len(odds_nodes)
+            nodes_from_include = rel.get("odds", {}).get("data") or []
+            odds_count = len(nodes_from_include)
 
-            best_1x2 = {"Home": None, "Draw": None, "Away": None}
-            best_1x2_bm = {"Home": None, "Draw": None, "Away": None}
-            seen_bookmakers = set()
-
-            ou_candidates = []
-            allow = self.prediction_settings["bookmaker_allowlist"]
-
-            for o in odds_nodes:
-                bm_id = o.get("bookmaker_id")
-                if allow and bm_id not in allow:
-                    continue
-                if bm_id:
-                    seen_bookmakers.add(bm_id)
-
-                market_id = o.get("market_id")
-                price = o.get("value")
-                label = (o.get("label") or o.get("name") or "").strip()
-
-                # FT 1X2
-                if market_id == 1 and price and label:
-                    markets_available["FT_1X2"] = True
-                    try:
-                        dec = float(price)
-                        key = "Home" if ("Home" in label or label == "1") else \
-                              "Draw" if ("Draw" in label or label.lower() in ("x", "draw")) else \
-                              "Away" if ("Away" in label or label == "2") else None
-                        if key:
-                            prev = best_1x2.get(key)
-                            if prev is None or dec > prev:
-                                best_1x2[key] = dec
-                                best_1x2_bm[key] = bm_id
-                    except:
-                        pass
-
-                # OU 2.5 approx
-                if market_id == 80 and price and label:
-                    lab = label.lower()
-                    if ("over" in lab or "under" in lab) and ("2.5" in lab or str(self.prediction_settings["ou_target_line"]) in lab):
-                        try:
-                            dec = float(price)
-                            pick = "Over 2.5" if "over" in lab else "Under 2.5"
-                            ou_candidates.append((pick, dec, bm_id, label))
-                            markets_available["OU"] = True
-                        except:
-                            pass
-
-            bookmaker_count = len(seen_bookmakers)
-
-            # Overround (best prices)
-            if markets_available["FT_1X2"] and all(best_1x2[k] for k in ("Home","Draw","Away")):
-                inv = sum(1.0 / best_1x2[k] for k in ("Home","Draw","Away"))
-                overround_ft = round((inv - 1.0) * 100, 2)
-
-        score = 0
-        weight = {
-            "participants": 12, "scores": 8, "state": 8, "venue": 6, "league": 8,
-            "weatherreport": 6, "lineups": 10, "stats": 10, "events": 12, "odds": 20
+        aux_key = f"fixture_odds_aux:{fixture_id}"
+        extracted = self._extract_odds_from_nodes(nodes_from_include) if nodes_from_include else {
+            "best_1x2": {"Home": None, "Draw": None, "Away": None},
+            "best_1x2_bm": {"Home": None, "Draw": None, "Away": None},
+            "ou_candidates": [],
+            "bookmaker_count": 0
         }
+
+        # 2) If no odds via includes, try dedicated odds fallbacks
+        if odds_count == 0:
+            fb = self._try_odds_fallbacks(fixture_id)
+            if fb and isinstance(fb["body"], dict):
+                od_data = fb["body"].get("data") or []
+                odds_count = len(od_data) if isinstance(od_data, list) else (1 if od_data else 0)
+                ext2 = self._extract_odds_from_nodes(od_data if isinstance(od_data, list) else [od_data])
+                # merge/overwrite with fallback results
+                for k in ("Home","Draw","Away"):
+                    if ext2["best_1x2"].get(k):
+                        extracted["best_1x2"][k] = ext2["best_1x2"][k]
+                        extracted["best_1x2_bm"][k] = ext2["best_1x2_bm"][k]
+                extracted["ou_candidates"].extend(ext2["ou_candidates"])
+                bookmaker_count = max(extracted["bookmaker_count"], ext2["bookmaker_count"])
+                includes_present["odds"] = True  # we have odds even if not via include
+
+        # availability flags + overround
+        markets_available["FT_1X2"] = all(extracted["best_1x2"].get(k) for k in ("Home","Draw","Away"))
+        markets_available["OU"] = bool(extracted["ou_candidates"])
+        bookmaker_count = max(bookmaker_count, extracted["bookmaker_count"])
+
+        if markets_available["FT_1X2"]:
+            inv = sum(1.0 / extracted["best_1x2"][k] for k in ("Home","Draw","Away"))
+            overround_ft = round((inv - 1.0) * 100, 2)
+
+        # completeness
+        score = 0
+        weight = {"participants":12,"scores":8,"state":8,"venue":6,"league":8,"weatherreport":6,"lineups":10,"stats":10,"events":12,"odds":20}
         for k, v in includes_present.items():
             if v: score += weight[k]
         if markets_available["FT_1X2"]:
@@ -367,30 +472,18 @@ class SportMonksWebTester:
         score = min(score, 100)
 
         fd = FixtureDetail(
-            fixture_id=fixture_id,
-            league_id=league_id,
-            name=name,
-            starting_at=starting_at,
+            fixture_id=fixture_id, league_id=league_id, name=name, starting_at=starting_at,
             has_odds=has_odds_flag or includes_present["odds"],
-            includes_present=includes_present,
-            markets_available=markets_available,
-            bookmaker_count=bookmaker_count,
-            odds_count=odds_count,
-            overround_ft_1x2=overround_ft,
+            includes_present=includes_present, markets_available=markets_available,
+            bookmaker_count=bookmaker_count, odds_count=odds_count, overround_ft_1x2=overround_ft,
             completeness_score=score
         )
 
-        # store aux odds for predictions
-        aux_key = f"fixture_odds_aux:{fixture_id}"
-        self.cache.set(aux_key, {
-            "best_1x2": locals().get("best_1x2", {}),
-            "best_1x2_bm": locals().get("best_1x2_bm", {}),
-            "ou_candidates": locals().get("ou_candidates", [])
-        }, ttl_seconds=120)
-
+        # stash aux for predictions
+        self.cache.set(aux_key, extracted, ttl_seconds=120)
         return fd
 
-    # ------------- Odds utils -------------
+    # ---------- predictions ----------
     @staticmethod
     def implied_prob(odds: float) -> float:
         return 1.0 / float(odds) if odds and odds > 1.0 else 0.0
@@ -407,11 +500,8 @@ class SportMonksWebTester:
         f = (p*(b+1) - 1) / b
         return max(0.0, f)
 
-    # ------------- Minimal model -------------
     def predict_for_fixture(self, fixture_id: int, detail: FixtureDetail) -> FixturePrediction:
-        pred = FixturePrediction(
-            fixture_id=fixture_id, name=detail.name, starting_at=detail.starting_at, league_id=detail.league_id
-        )
+        pred = FixturePrediction(fixture_id=fixture_id, name=detail.name, starting_at=detail.starting_at, league_id=detail.league_id)
         aux = self.cache.get(f"fixture_odds_aux:{fixture_id}") or {}
         best_1x2 = aux.get("best_1x2") or {}
         best_1x2_bm = aux.get("best_1x2_bm") or {}
@@ -422,6 +512,8 @@ class SportMonksWebTester:
             oH, oD, oA = best_1x2["Home"], best_1x2["Draw"], best_1x2["Away"]
             pH, pD, pA = self.implied_prob(oH), self.implied_prob(oD), self.implied_prob(oA)
             fH, fD, fA = self.de_overround([pH, pD, pA])
+            book_pct = (1.0/oH + 1.0/oD + 1.0/oA) * 100.0
+
             for pick, odds, fair_p, bm in [
                 ("Home", oH, fH, best_1x2_bm.get("Home")),
                 ("Draw", oD, fD, best_1x2_bm.get("Draw")),
@@ -429,16 +521,17 @@ class SportMonksWebTester:
             ]:
                 edge = fair_p - (1.0 / odds)
                 k = self.kelly_fraction(fair_p, odds - 1.0) * self.prediction_settings["kelly_fraction"] if edge > 0 else 0.0
+                note = f"Fairised | Fair≈{(1.0/fair_p):.2f} | Book%≈{book_pct:.1f}%"
                 pred.selections.append(Selection(
                     market="1X2", pick=pick, odds=odds, implied_prob=self.implied_prob(odds),
                     fair_prob=fair_p, model_prob=fair_p, edge=edge, kelly_fraction=round(k, 4),
-                    bookmaker_id=bm, notes="Fairised from best book prices"
+                    bookmaker_id=bm, notes=note
                 ))
 
         # OU 2.5
-        if detail.markets_available.get("OU") and ou_candidates:
+        if ou_candidates:
             best_over, best_under = None, None
-            for pick, dec, bm, label in ou_candidates:
+            for pick, dec, bm, _ in ou_candidates:
                 if "over" in pick.lower():
                     if not best_over or dec > best_over[1]:
                         best_over = (pick, dec, bm)
@@ -449,16 +542,16 @@ class SportMonksWebTester:
                 oO, oU = best_over[1], best_under[1]
                 pO, pU = self.implied_prob(oO), self.implied_prob(oU)
                 fO, fU = self.de_overround([pO, pU])
-                for pick, odds, fair_p, bm in [
-                    (best_over[0], oO, fO, best_over[2]),
-                    (best_under[0], oU, fU, best_under[2]),
-                ]:
+                book_pct = (1.0/oO + 1.0/oU) * 100.0
+
+                for pick, odds, fair_p, bm in [(best_over[0], oO, fO, best_over[2]), (best_under[0], oU, fU, best_under[2])]:
                     edge = fair_p - (1.0 / odds)
                     k = self.kelly_fraction(fair_p, odds - 1.0) * self.prediction_settings["kelly_fraction"] if edge > 0 else 0.0
+                    note = f"Fairised | Fair≈{(1.0/fair_p):.2f} | Book%≈{book_pct:.1f}%"
                     pred.selections.append(Selection(
                         market=f"OU {self.prediction_settings['ou_target_line']}", pick=pick, odds=odds,
                         implied_prob=self.implied_prob(odds), fair_prob=fair_p, model_prob=fair_p,
-                        edge=edge, kelly_fraction=round(k, 4), bookmaker_id=bm, notes="Over/Under fairised from best prices"
+                        edge=edge, kelly_fraction=round(k, 4), bookmaker_id=bm, notes=note
                     ))
 
         min_edge = self.prediction_settings["min_edge"]
@@ -466,7 +559,7 @@ class SportMonksWebTester:
         pred.best = max(viable, key=lambda s: s.edge) if viable else (max(pred.selections, key=lambda s: s.edge, default=None))
         return pred
 
-    # ------------- Analysis synthesis -------------
+    # ---------- analysis ----------
     def derive_capabilities(self) -> Dict[str, bool]:
         by = {r.endpoint: r for r in self.test_results}
         return {
@@ -497,43 +590,14 @@ class SportMonksWebTester:
         elif sr >= 70: readiness_level = "good"
         elif sr >= 40: readiness_level = "moderate"
 
-        recs = []
-        if not capabilities["predictions_access"]:
-            recs.append("Hide/disable predictions UI; drive the bot with fixtures + bookmaker + market + odds.")
-        if any((fd.overround_ft_1x2 or 0) > 7.5 for fd in self.fixture_details):
-            recs.append("High overround detected on some fixtures; consider bookmaker filtering or best‑price selection.")
-        if not self.fixture_details:
-            recs.append("Drill down at least 3 fixtures per run to validate odds + includes completeness.")
-
         roadmap = [
             {"phase": 1, "title": "Data Layer & Health", "weeks": "1 week",
-             "tasks": [
-                 "Drill-down fetch per fixture with verified includes",
-                 "Normalize odds (1X2 & O/U) and compute implied probabilities",
-                 "Add bookmaker/market filters and caching"
-             ]},
+             "tasks": ["Drill-down fetch per fixture with fallbacks", "Normalize odds & implied probs", "Caching + backoff"]},
             {"phase": 2, "title": "Baseline Models", "weeks": "1 week",
-             "tasks": [
-                 "1X2 baseline via odds-implied priors + recent goals feature",
-                 "Totals baseline via OU ladder and team GF/GA",
-                 "Confidence score + bet eligibility rules"
-             ]},
+             "tasks": ["1X2 via fairised priors + simple form", "Totals via OU ladder", "Confidence + eligibility rules"]},
             {"phase": 3, "title": "Automation & Delivery", "weeks": "1 week",
-             "tasks": [
-                 "Hourly polling + in-play hook",
-                 "Telegram delivery + result logging",
-                 "Daily summary & ROI tracking"
-             ]},
+             "tasks": ["In-play pulse + alerts", "Delivery (Telegram)", "ROI tracking"]}
         ]
-
-        strategy = {
-            "approach": "Odds-led predictions with fairised probabilities and conservative staking (quarter-Kelly).",
-            "timeline": "2–3 weeks to MVP with alerts and tracking.",
-            "tech_stack": ["Python", "Flask", "Requests", "Redis (optional cache)", "SQLite/Postgres (logging)"],
-            "primary_markets": ["1X2", "Over/Under 2.5"],
-            "estimated_cost": "Within existing SportMonks plan",
-            "expected_roi": "Start with paper trading; promote to small stakes once EV is stable."
-        }
 
         exec_summary = {
             "overall_readiness": readiness_level.upper(),
@@ -555,31 +619,38 @@ class SportMonksWebTester:
                 "failed_critical": failed_critical
             },
             "fixture_details": [asdict(fd) for fd in self.fixture_details],
-            "recommendations": recs,
+            "recommendations": [
+                "Use in-play pulse to capture evolving edges.",
+                "Filter by bookmakers you actually bet with for realistic pricing.",
+            ],
             "implementation_roadmap": roadmap,
-            "development_strategy": strategy
+            "development_strategy": {
+                "approach": "Odds-led predictions with fairising + ¼ Kelly; live pulse for in-play.",
+                "timeline": "2–3 weeks to MVP",
+                "tech_stack": ["Python","Flask","Requests","Redis (optional)","SQLite/Postgres"],
+                "primary_markets": ["1X2","Over/Under 2.5"],
+                "estimated_cost": "Within current SportMonks plan",
+                "expected_roi": "Start paper; move to small stakes when stable."
+            }
         }
 
-    # ------------- Orchestrator -------------
+    # ---------- orchestrator ----------
     def run_tests_async(self):
-        """Run smoke tests, then fixture drill-down and analysis."""
         self.is_testing = True
         self.test_results = []
         self.fixture_details = []
         endpoints = self.setup_test_endpoints()
-
         self.testing_progress = {'current': 0, 'total': len(endpoints) + 1, 'status': 'running', 'current_test': ''}
 
         try:
-            # 1) Smoke tests
+            # Smoke tests
             for i, endpoint in enumerate(endpoints):
                 if not self.is_testing: break
                 self.testing_progress.update(current=i+1, current_test=endpoint.name)
-                result = self.test_single_endpoint(endpoint)
-                self.test_results.append(result)
+                self.test_results.append(self.test_single_endpoint(endpoint))
                 time.sleep(0.2)
 
-            # 2) Fixture drill-down (up to 5 fixtures)
+            # Fixture drilldown (up to 8)
             if self.is_testing:
                 self.testing_progress.update(current=len(endpoints)+1, current_test="Fixture Drill-down")
                 if not self.discovered_fixture_ids:
@@ -589,19 +660,17 @@ class SportMonksWebTester:
                     if status == 200 and isinstance(body, dict):
                         self._collect_fixtures(body)
 
-                for fid in self.discovered_fixture_ids[:5]:
-                    detail = self.fetch_fixture_detail(fid)
-                    self.fixture_details.append(detail)
-                    time.sleep(0.15)
+                for fid in self.discovered_fixture_ids[:8]:
+                    self.fixture_details.append(self.fetch_fixture_detail(fid))
+                    time.sleep(0.12)
 
             self.testing_progress['status'] = 'completed'
-
         except Exception as e:
             self.testing_progress['status'] = f'error: {str(e)[:120]}'
         finally:
             self.is_testing = False
 
-    # ------------- Summary -------------
+    # ---------- summary ----------
     def get_summary_stats(self) -> Dict:
         if not self.test_results:
             return {'total': 0, 'successful': 0, 'failed': 0, 'success_rate': 0, 'avg_response_time': 0, 'total_data_items': 0}
@@ -610,24 +679,23 @@ class SportMonksWebTester:
         avg_rt = round(sum(r.response_time for r in self.test_results if r.success) / max(successful, 1), 2)
         items = sum(r.data_count for r in self.test_results)
         return {'total': total, 'successful': successful, 'failed': total - successful,
-                'success_rate': round(successful / total * 100, 1), 'avg_response_time': avg_rt,
-                'total_data_items': items}
+                'success_rate': round(successful / total * 100, 1), 'avg_response_time': avg_rt, 'total_data_items': items}
 
 # -------------------- Flask app --------------------
 
 app = Flask(__name__)
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 tester: Optional[SportMonksWebTester] = None
 
 @app.route('/')
 def home():
-    # Make sure you have templates/index.html (the fixed version)
     return render_template('index.html')
 
 @app.route('/api/start-test', methods=['POST'])
 def start_test():
     global tester
     data = request.get_json(silent=True) or {}
-    api_token = (data.get('api_token') or '').strip()
+    api_token = (data.get('api_token') or '').strip().replace('\n','').replace('\r','')
     if not api_token:
         return jsonify({'error': 'API token required'}), 400
     if tester and tester.is_testing:
@@ -668,7 +736,6 @@ def get_results():
         'analysis': analysis
     })
 
-# -------- New non-breaking predictions endpoint --------
 @app.route('/api/predictions')
 def get_predictions():
     if not tester:
@@ -695,10 +762,64 @@ def get_predictions():
     preds_sorted = sorted(preds, key=lambda x: (x.best.edge if x.best else -1), reverse=True)
     return jsonify({"count": len(preds_sorted), "predictions": [pack(p) for p in preds_sorted]})
 
+@app.route('/api/live-pulse')
+def live_pulse():
+    """Snapshot of in-play fixtures + quick odds via same fallbacks."""
+    if not tester:
+        return jsonify({"live": []})
+    # get live fixtures
+    status, body, _, _ = tester._get(f"{tester.base_url}/livescores/inplay")
+    live = []
+    if status == 200 and isinstance(body, dict):
+        for item in body.get("data") or []:
+            fid = item.get("id")
+            if not fid:
+                continue
+            # try minimal enrich: odds fallback + last event minute
+            fd_detail = tester.fetch_fixture_detail(int(fid))
+            last_min = None
+            # pull events if present in includes (we didn't include for pulse; try light fetch)
+            inc = tester._try_fixture_includes(int(fid))
+            if inc["status"] == 200 and isinstance(inc["body"], dict):
+                rel = (inc["body"].get("data") or {}).get("relationships") or {}
+                ev = rel.get("events", {}).get("data") or []
+                if ev and isinstance(ev, list):
+                    try:
+                        mins = [e.get("minute") for e in ev if isinstance(e, dict) and e.get("minute") is not None]
+                        last_min = max(mins) if mins else None
+                    except:
+                        last_min = None
+
+            live.append({
+                "fixture_id": fid,
+                "name": item.get("name"),
+                "time": (item.get("time") or {}).get("minute"),
+                "scores": item.get("scores"),
+                "state": item.get("state"),
+                "last_event_min": last_min,
+                "markets_available": fd_detail.markets_available,
+                "overround_ft_1x2": fd_detail.overround_ft_1x2
+            })
+    return jsonify({"live": live})
+
 @app.route('/api/download-report')
 def download_report():
     if not tester or not tester.test_results:
         return jsonify({'error': 'No results available'}), 400
+
+    # augment fixture_details with odds summaries
+    augmented = []
+    for fd in tester.fixture_details:
+        row = asdict(fd)
+        aux = tester.cache.get(f"fixture_odds_aux:{fd.fixture_id}") or {}
+        b1 = aux.get("best_1x2") or {}
+        if all(b1.get(k) for k in ("Home","Draw","Away")):
+            inv = sum(1.0/float(b1[k]) for k in ("Home","Draw","Away"))
+            row["book_percentage_1x2"] = round(inv * 100.0, 2)
+            row["best_prices_1x2"] = b1
+        ou = aux.get("ou_candidates") or []
+        row["ou_candidates_count"] = len(ou)
+        augmented.append(row)
 
     report_data = {
         'timestamp': datetime.now().isoformat(),
@@ -706,7 +827,7 @@ def download_report():
         'discovered_ids': tester.discovered_ids,
         'fixture_ids': tester.discovered_fixture_ids,
         'results': [asdict(r) for r in tester.test_results],
-        'fixture_details': [asdict(fd) for fd in tester.fixture_details],
+        'fixture_details': augmented,
         'analysis': tester.build_analysis_payload()
     }
 
@@ -721,7 +842,7 @@ def health_check():
     status = tester.testing_progress['status'] if tester else 'idle'
     return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat(), 'testing_status': status})
 
-# -------- Aliases to match earlier frontend routes (kept) --------
+# Aliases kept for older HTML
 @app.route('/api/start-analysis', methods=['POST'])
 def start_analysis_alias():
     return start_test()
