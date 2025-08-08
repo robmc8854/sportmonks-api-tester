@@ -18,51 +18,41 @@
     label { display: block; margin-bottom: 10px; font-weight: 600; color: #2c3e50; font-size: 1.1em; }
     input[type="text"] { width: 100%; padding: 18px; border: 2px solid #e0e6ed; border-radius: 12px; font-size: 16px; transition: border-color 0.3s ease; }
     input[type="text"]:focus { outline: none; border-color: #667eea; }
-    .btn { width: 100%; padding: 20px; border: none; border-radius: 12px; font-size: 18px; font-weight: 600; cursor: pointer;
-      transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px; }
+    .btn { padding: 12px 16px; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer;
+      transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 1px; }
     .btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
     .btn-success { background: linear-gradient(135deg, #2ecc71, #27ae60); color: white; }
     .btn:hover { transform: translateY(-3px); box-shadow: 0 15px 30px rgba(0,0,0,0.2); }
     .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+    .toolbar { display:flex; gap:10px; flex-wrap:wrap; margin: 0 0 16px 0; }
     .progress { background: #f8f9fa; border-radius: 12px; overflow: hidden; margin: 25px 0; height: 15px; }
     .progress-bar { height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); transition: width 0.5s ease; width: 0%; }
     .status { text-align: center; margin: 25px 0; padding: 20px; border-radius: 12px; font-weight: 500; font-size: 1.1em; }
     .status.testing { background: #e3f2fd; color: #1565c0; }
     .status.completed { background: #e8f5e8; color: #2e7d32; }
     .status.error { background: #ffebee; color: #c62828; }
-    .results { margin-top: 40px; }
-    .readiness-card { background: linear-gradient(135deg, #f8f9fa, #e9ecef); border-radius: 20px; padding: 40px; margin: 30px 0; text-align: center; border: 3px solid; }
+    .results { margin-top: 24px; }
+    .readiness-card { background: linear-gradient(135deg, #f8f9fa, #e9ecef); border-radius: 20px; padding: 32px; margin: 20px 0; text-align: center; border: 3px solid; }
     .readiness-excellent { border-color: #27ae60; background: linear-gradient(135deg, #d5f4e6, #c8e6c9); }
     .readiness-good { border-color: #3498db; background: linear-gradient(135deg, #e3f2fd, #bbdefb); }
     .readiness-moderate { border-color: #f39c12; background: linear-gradient(135deg, #fff3cd, #ffeaa7); }
     .readiness-insufficient { border-color: #e74c3c; background: linear-gradient(135deg, #ffebee, #ffcdd2); }
-    .readiness-title { font-size: 2em; font-weight: bold; margin-bottom: 15px; }
-    .readiness-score { font-size: 4em; font-weight: bold; margin: 20px 0; }
-    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 30px 0; }
-    .stat-card { background: white; padding: 25px; border-radius: 15px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
-    .stat-value { font-size: 2.5em; font-weight: bold; color: #2c3e50; margin-bottom: 10px; }
-    .stat-label { color: #666; font-size: 1em; font-weight: 500; }
-    .section { background: #f8f9fa; border-radius: 15px; padding: 25px; margin: 25px 0; }
-    .section h3 { margin-bottom: 20px; color: #2c3e50; font-size: 1.5em; display: flex; align-items: center; gap: 10px; }
-    .recommendation-item { background: white; padding: 15px 20px; border-radius: 10px; margin-bottom: 12px; border-left: 4px solid #667eea; font-size: 1.05em; line-height: 1.4; }
-    .roadmap-phase { background: white; border-radius: 12px; padding: 25px; margin-bottom: 20px; border-left: 5px solid #667eea; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-    .phase-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-    .phase-title { font-weight: bold; font-size: 1.3em; color: #2c3e50; }
-    .phase-duration { background: #667eea; color: white; padding: 5px 15px; border-radius: 20px; font-size: 0.9em; font-weight: 500; }
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 20px 0; }
+    .stat-card { background: white; padding: 20px; border-radius: 15px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+    .section { background: #f8f9fa; border-radius: 15px; padding: 20px; margin: 20px 0; }
+    .section h3 { margin-bottom: 12px; color: #2c3e50; font-size: 1.3em; display: flex; align-items: center; gap: 10px; }
+    .list { display:grid; gap:10px; }
+    .card { background: white; border-left: 5px solid #667eea; border-radius: 10px; padding: 12px 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
     .hidden { display: none; }
-    @media (max-width: 768px) {
-      body { padding: 10px; }
-      .content { padding: 25px 15px; }
-      .summary-grid { grid-template-columns: repeat(2, 1fr); }
-      .readiness-score { font-size: 3em; }
-    }
+    pre.code { background:white;border-radius:12px;padding:16px;box-shadow:0 5px 15px rgba(0,0,0,0.05);overflow:auto; }
+    @media (max-width: 768px) { .content { padding: 24px 14px; } }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
       <h1>🤖 Professional Betting Bot Analyzer</h1>
-      <p>Complete SportMonks API analysis for building successful betting prediction bots</p>
+      <p>SportMonks coverage for pre‑match & in‑play prediction</p>
     </div>
 
     <div class="content">
@@ -80,52 +70,70 @@
       </div>
 
       <div id="resultsSection" class="results hidden">
+        <!-- Executive summary -->
         <div id="readinessCard" class="readiness-card">
           <div class="readiness-title" id="readinessTitle">Analyzing...</div>
           <div class="readiness-score" id="readinessScore">-</div>
           <div id="readinessDescription">Complete analysis in progress...</div>
         </div>
-
         <div class="summary-grid" id="summaryGrid"></div>
 
+        <!-- Endpoint results -->
         <div class="section">
           <h3>📋 Endpoint Results</h3>
-          <div id="resultList"></div>
+          <div class="list" id="resultList"></div>
         </div>
 
+        <!-- Discovered IDs -->
         <div class="section">
           <h3>🆔 Discovered IDs</h3>
-          <pre id="discoveredIds" style="background:white;border-radius:12px;padding:16px;box-shadow:0 5px 15px rgba(0,0,0,0.05);overflow:auto;"></pre>
+          <pre class="code" id="discoveredIds"></pre>
+        </div>
+
+        <!-- Today / Next 48h -->
+        <div class="section">
+          <h3>📅 Today & Next 48h</h3>
+          <div class="toolbar">
+            <button class="btn btn-primary" id="btnToday">Today</button>
+            <button class="btn" id="btnNext48">Next 48h</button>
+          </div>
+          <div id="fixturesList" class="list"></div>
+        </div>
+
+        <!-- Fixture context -->
+        <div class="section">
+          <h3>🧠 Fixture Context & Best Prices</h3>
+          <div class="toolbar">
+            <label>Fixture ID: <input id="fixtureIdInput" style="padding:8px;border:1px solid #ddd;border-radius:8px;width:140px"></label>
+            <button class="btn btn-primary" id="btnLoadContext">Load</button>
+          </div>
+          <div id="fixtureContext" class="list"></div>
         </div>
 
         <!-- Predictions -->
         <div class="section">
           <h3>🎯 Bot Predictions</h3>
-          <div style="display:flex; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+          <div class="toolbar">
             <button class="btn btn-primary" id="predictionsBtn">🔮 Load Predictions</button>
-            <label style="display:flex;align-items:center;gap:8px;">
-              Min Edge:
-              <input id="minEdge" type="number" step="0.01" min="0" max="0.5" value="0.03" style="padding:10px;border:1px solid #ddd;border-radius:8px;width:100px;">
+            <label>Min Edge:
+              <input id="minEdge" type="number" step="0.01" min="0" max="0.5" value="0.03" style="padding:8px;border:1px solid #ddd;border-radius:8px;width:100px;">
             </label>
-            <label style="display:flex;align-items:center;gap:8px;">
-              Auto-refresh:
-              <input id="autoRefresh" type="checkbox">
-            </label>
+            <label>Auto-refresh: <input id="autoRefresh" type="checkbox"></label>
           </div>
-          <div id="predictionsNotice" class="status hidden">Run the analysis first, then load predictions.</div>
-          <div id="predictionsList"></div>
+          <div id="predictionsList" class="list"></div>
         </div>
 
-        <!-- Live Pulse -->
+        <!-- In-Play -->
         <div class="section">
           <h3>⚡ In‑Play Pulse</h3>
-          <div style="display:flex; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+          <div class="toolbar">
             <button class="btn btn-primary" id="pulseBtn">📡 Start Pulse</button>
             <button class="btn" id="pulseStopBtn">⏹ Stop</button>
           </div>
-          <div id="pulseList"></div>
+          <div id="pulseList" class="list"></div>
         </div>
 
+        <!-- Report -->
         <div class="section">
           <h3>📄 Complete Analysis Report</h3>
           <button class="btn btn-success" id="downloadBtn">📥 Download Complete Report</button>
@@ -138,12 +146,18 @@
     let testInterval, pulseTimer, autoRefreshTimer;
     let isTestRunning = false;
 
-    document.getElementById('analysisForm').addEventListener('submit', startAnalysis);
-    document.getElementById('downloadBtn').addEventListener('click', downloadReport);
-    document.getElementById('predictionsBtn').addEventListener('click', loadPredictions);
-    document.getElementById('pulseBtn').addEventListener('click', startPulse);
-    document.getElementById('pulseStopBtn').addEventListener('click', stopPulse);
-    document.getElementById('autoRefresh').addEventListener('change', (e) => {
+    const $ = (id) => document.getElementById(id);
+    const code = (obj) => `<pre class="code">${typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2)}</pre>`;
+
+    $('analysisForm').addEventListener('submit', startAnalysis);
+    $('downloadBtn').addEventListener('click', downloadReport);
+    $('predictionsBtn').addEventListener('click', loadPredictions);
+    $('pulseBtn').addEventListener('click', startPulse);
+    $('pulseStopBtn').addEventListener('click', stopPulse);
+    $('btnToday').addEventListener('click', loadToday);
+    $('btnNext48').addEventListener('click', loadNext48);
+    $('btnLoadContext').addEventListener('click', loadFixtureContext);
+    $('autoRefresh').addEventListener('change', (e) => {
       if (e.target.checked) {
         if (autoRefreshTimer) clearInterval(autoRefreshTimer);
         autoRefreshTimer = setInterval(loadPredictions, 60000);
@@ -154,7 +168,7 @@
 
     async function startAnalysis(e) {
       e.preventDefault();
-      const apiToken = document.getElementById('apiToken').value.trim();
+      const apiToken = $('apiToken').value.trim();
       if (!apiToken || apiToken.length < 10) {
         alert('Please enter a valid SportMonks API token (at least 10 characters)');
         return;
@@ -167,14 +181,14 @@
         if (!res.ok) throw new Error(data?.error || 'Failed to start analysis');
 
         isTestRunning = true;
-        document.getElementById('startBtn').disabled = true;
-        document.getElementById('startBtn').textContent = '🔄 Analysis Running...';
-        document.getElementById('progressSection').classList.remove('hidden');
+        $('startBtn').disabled = true;
+        $('startBtn').textContent = '🔄 Analysis Running...';
+        $('progressSection').classList.remove('hidden');
         startProgressPolling();
       } catch (err) {
         alert('Error: ' + err.message);
-        document.getElementById('startBtn').disabled = false;
-        document.getElementById('startBtn').textContent = '🚀 Start Complete Analysis';
+        $('startBtn').disabled = false;
+        $('startBtn').textContent = '🚀 Start Complete Analysis';
       }
     }
 
@@ -193,20 +207,20 @@
           } else if (String(data?.progress?.status || '').includes('error')) {
             clearInterval(testInterval);
             isTestRunning = false;
-            document.getElementById('statusText').textContent = 'Error: ' + data.progress.status;
-            document.getElementById('statusText').className = 'status error';
-            document.getElementById('startBtn').disabled = false;
-            document.getElementById('startBtn').textContent = '🚀 Start Complete Analysis';
+            $('statusText').textContent = 'Error: ' + data.progress.status;
+            $('statusText').className = 'status error';
+            $('startBtn').disabled = false;
+            $('startBtn').textContent = '🚀 Start Complete Analysis';
           }
         } catch (err) {
-          console.error('Error fetching progress:', err);
+          console.error('Error fetch progress:', err);
         }
       }, 1000);
     }
 
     function updateProgress(progress) {
-      const progressBar = document.getElementById('progressBar');
-      const statusText = document.getElementById('statusText');
+      const progressBar = $('progressBar');
+      const statusText = $('statusText');
       const pct = progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
       progressBar.style.width = pct + '%';
       if (progress.status === 'running') {
@@ -227,9 +241,9 @@
         if (!res.ok) throw new Error(data?.error || 'Failed to load results');
 
         displayResults(data);
-        document.getElementById('resultsSection').classList.remove('hidden');
-        document.getElementById('startBtn').disabled = false;
-        document.getElementById('startBtn').textContent = '🚀 Start Complete Analysis';
+        $('resultsSection').classList.remove('hidden');
+        $('startBtn').disabled = false;
+        $('startBtn').textContent = '🚀 Start Complete Analysis';
       } catch (err) {
         console.error('Error loading results:', err);
         alert('Error loading results: ' + err.message);
@@ -247,75 +261,110 @@
       else if (sr >= 70) level = 'good';
       else if (sr >= 40) level = 'moderate';
 
-      const readinessCard = document.getElementById('readinessCard');
+      const readinessCard = $('readinessCard');
       readinessCard.className = `readiness-card readiness-${level}`;
-      document.getElementById('readinessTitle').textContent = level.toUpperCase();
-      document.getElementById('readinessScore').textContent = `${Math.round(sr)}/100`;
-      document.getElementById('readinessDescription').textContent =
+      $('readinessTitle').textContent = level.toUpperCase();
+      $('readinessScore').textContent = `${Math.round(sr)}/100`;
+      $('readinessDescription').textContent =
         level === 'excellent' ? 'You have robust coverage for a professional-grade bot.' :
         level === 'good' ? 'Solid coverage. You can build an effective bot.' :
         level === 'moderate' ? 'Basic bot possible; consider adding more endpoints.' :
         'Coverage too thin—fix failing endpoints.';
 
-      document.getElementById('summaryGrid').innerHTML = `
-        <div class="stat-card"><div class="stat-value">${summary.total}</div><div class="stat-label">Endpoints Tested</div></div>
-        <div class="stat-card"><div class="stat-value" style="color:#27ae60">${summary.successful}</div><div class="stat-label">Successful</div></div>
-        <div class="stat-card"><div class="stat-value" style="color:#e74c3c">${summary.failed}</div><div class="stat-label">Failed</div></div>
-        <div class="stat-card"><div class="stat-value">${summary.success_rate}%</div><div class="stat-label">Success Rate</div></div>
-        <div class="stat-card"><div class="stat-value">${summary.avg_response_time}s</div><div class="stat-label">Avg. Response Time</div></div>
-        <div class="stat-card"><div class="stat-value">${(summary.total_data_items||0).toLocaleString()}</div><div class="stat-label">Data Items</div></div>
+      $('summaryGrid').innerHTML = `
+        <div class="stat-card"><div class="stat-value">${summary.total}</div><div>Endpoints Tested</div></div>
+        <div class="stat-card"><div class="stat-value" style="color:#27ae60">${summary.successful}</div><div>Successful</div></div>
+        <div class="stat-card"><div class="stat-value" style="color:#e74c3c">${summary.failed}</div><div>Failed</div></div>
+        <div class="stat-card"><div class="stat-value">${summary.success_rate}%</div><div>Success Rate</div></div>
+        <div class="stat-card"><div class="stat-value">${summary.avg_response_time}s</div><div>Avg RT</div></div>
+        <div class="stat-card"><div class="stat-value">${(summary.total_data_items||0).toLocaleString()}</div><div>Data Items</div></div>
       `;
 
-      const resultList = document.getElementById('resultList');
-      resultList.innerHTML = results.length ? results.map(r => {
+      const list = $('resultList');
+      list.innerHTML = results.length ? results.map(r => {
         const ok = r.success;
         const color = ok ? '#27ae60' : '#e74c3c';
         const msg = ok ? `${r.data_count} items` : (r.errors && r.errors[0]) || `HTTP ${r.status_code}`;
         const rt = (typeof r.response_time === 'number') ? r.response_time.toFixed(2) : r.response_time;
-        return `
-          <div class="recommendation-item" style="border-left-color:${color}">
-            <strong>${r.endpoint}</strong><br/>
-            Status: <span style="color:${color}">${ok ? 'OK' : 'Failed'}</span> — ${msg} — ${rt}s
-          </div>
-        `;
+        return `<div class="card" style="border-left-color:${color}">
+          <strong>${r.endpoint}</strong> — <span style="color:${color}">${ok ? 'OK' : 'Failed'}</span>
+          <br/>${msg} — ${rt}s
+        </div>`;
       }).join('') : '<p>No results yet.</p>';
 
-      document.getElementById('discoveredIds').textContent = JSON.stringify(ids, null, 2);
+      $('discoveredIds').textContent = JSON.stringify(ids, null, 2);
     }
 
+    // ---- Today / Next48 ----
+    async function loadToday() {
+      const list = $('fixturesList'); list.innerHTML = 'Loading today...';
+      const res = await fetch('/api/fixtures/today');
+      const data = await safeJson(res);
+      renderFixtures(list, (data && data.data) || []);
+    }
+    async function loadNext48() {
+      const list = $('fixturesList'); list.innerHTML = 'Loading next 48h...';
+      const res = await fetch('/api/fixtures/next48h');
+      const data = await safeJson(res);
+      renderFixtures(list, (data && data.data) || []);
+    }
+    function renderFixtures(container, arr) {
+      if (!arr.length) { container.innerHTML = '<p>No fixtures found.</p>'; return; }
+      container.innerHTML = arr.map(x => `
+        <div class="card">
+          <strong>${x.name || ('Fixture ' + x.id)}</strong>
+          <div>${x.starting_at || ''}</div>
+          ${x.league_id ? `<div>League: ${x.league_id}</div>` : ''}
+          <div style="margin-top:6px;">
+            <button class="btn btn-primary" onclick="loadContextById(${x.id})">Context</button>
+          </div>
+        </div>
+      `).join('');
+    }
+    window.loadContextById = async (id) => { $('fixtureIdInput').value = id; await loadFixtureContext(); };
+
+    // ---- Fixture context ----
+    async function loadFixtureContext() {
+      const id = Number($('fixtureIdInput').value.trim());
+      if (!id) return alert('Enter a fixture ID');
+      const box = $('fixtureContext'); box.innerHTML = 'Loading fixture context...';
+      const res = await fetch(`/api/fixture/${id}/context`);
+      const data = await safeJson(res);
+      if (!data || data.error) { box.innerHTML = `<div class="card" style="border-left-color:#e74c3c">${data?.error || 'No data'}</div>`; return; }
+      const f = data.fixture || {};
+      const bp = data.best_prices_1x2 || {};
+      const bpList = Object.keys(bp).length ? code(bp) : '—';
+      box.innerHTML = `
+        <div class="card"><strong>Fixture</strong>${code(f)}</div>
+        <div class="card"><strong>Best 1X2 Prices</strong>${bpList}</div>
+        <div class="card"><strong>Book% (1X2)</strong><div>${data.book_percentage_1x2 ?? '—'}%</div></div>
+        <div class="card"><strong>Teams</strong>${code(data.teams || [])}</div>
+        <div class="card"><strong>Recent</strong>${code(data.recent || {})}</div>
+        <div class="card"><strong>H2H</strong>${code(data.h2h || [])}</div>
+      `;
+    }
+
+    // ---- Predictions ----
     async function loadPredictions() {
-      const btn = document.getElementById('predictionsBtn');
-      const list = document.getElementById('predictionsList');
-      const notice = document.getElementById('predictionsNotice');
-      const minEdge = parseFloat(document.getElementById('minEdge').value || '0.03');
-
-      btn.disabled = true;
-      const originalText = btn.textContent;
-      btn.textContent = '🔄 Loading...';
-      notice.classList.add('hidden');
-
+      const btn = $('predictionsBtn');
+      const list = $('predictionsList');
+      const minEdge = parseFloat($('minEdge').value || '0.03');
+      btn.disabled = true; const old = btn.textContent; btn.textContent = '🔄 Loading...';
       try {
         const res = await fetch('/api/predictions');
         const data = await safeJson(res);
-        if (!res.ok) throw new Error((data && data.message) || 'Failed to load predictions');
-
         const preds = (data && data.predictions) || [];
-        if (!preds.length) {
-          list.innerHTML = `<p>No predictions available yet. Make sure fixtures had odds (market 1 and/or 80).</p>`;
-        } else {
-          preds.forEach(p => {
-            p.selections = (p.selections || []).filter(s => (s.edge || 0) >= minEdge);
-            if (p.best && p.best.edge < minEdge) p.best = null;
-          });
-          list.innerHTML = preds
-            .filter(p => (p.best || (p.selections && p.selections.length)))
-            .map(renderPredictionCard).join('') || '<p>No selections passed the min edge filter.</p>';
-        }
-      } catch (err) {
-        list.innerHTML = `<div class="status error">Error: ${err.message}</div>`;
+        preds.forEach(p => {
+          p.selections = (p.selections || []).filter(s => (s.edge || 0) >= minEdge);
+          if (p.best && p.best.edge < minEdge) p.best = null;
+        });
+        list.innerHTML = preds
+          .filter(p => p.best || (p.selections && p.selections.length))
+          .map(renderPredictionCard).join('') || '<p>No selections passed the min edge filter.</p>';
+      } catch (e) {
+        list.innerHTML = `<div class="card" style="border-left-color:#e74c3c">Error: ${e.message}</div>`;
       } finally {
-        btn.textContent = originalText;
-        btn.disabled = false;
+        btn.textContent = old; btn.disabled = false;
       }
     }
 
@@ -323,85 +372,51 @@
       const best = p.best;
       const sels = Array.isArray(p.selections) ? p.selections : [];
       const bestHtml = best ? `
-        <div class="recommendation-item" style="border-left-color:#27ae60">
-          <strong>Best:</strong> ${best.market} — <em>${best.pick}</em> @ <strong>${best.odds}</strong><br/>
-          Edge: ${(best.edge * 100).toFixed(1)}% &middot; Kelly (¼): ${(best.kelly_fraction * 100).toFixed(1)}% 
-          ${best.bookmaker_id ? `&middot; Bookmaker ID: ${best.bookmaker_id}` : ''}
-          <br/><small>${best.notes || ''}</small>
-        </div>` : `
-        <div class="recommendation-item" style="border-left-color:#f39c12">
-          No positive-edge selection found. Showing all computed selections below.
-        </div>`;
-
+        <div class="card" style="border-left-color:#27ae60">
+          <strong>${p.name || ('Fixture ' + p.fixture_id)}</strong>
+          <div>${p.starting_at ? new Date(p.starting_at).toLocaleString() : ''}</div>
+          <div><em>Best:</em> ${best.market} — ${best.pick} @ <strong>${best.odds}</strong></div>
+          <div>Edge: ${(best.edge * 100).toFixed(1)}% · Kelly (¼): ${(best.kelly_fraction * 100).toFixed(1)}% ${best.bookmaker_id ? `· BM: ${best.bookmaker_id}` : ''}</div>
+          <small>${best.notes || ''}</small>
+        </div>` : `<div class="card" style="border-left-color:#f39c12">No positive-edge selection found.</div>`;
       const listHtml = sels.map(s => `
-        <div class="recommendation-item" style="border-left-color:${s.edge > 0 ? '#27ae60' : '#e74c3c'}">
+        <div class="card" style="border-left-color:${s.edge > 0 ? '#27ae60' : '#e74c3c'}">
           ${s.market} — <em>${s.pick}</em> @ <strong>${s.odds}</strong>
-          &middot; Edge: ${(s.edge * 100).toFixed(1)}%
-          &middot; Kelly (¼): ${(s.kelly_fraction * 100).toFixed(1)}%
-          ${s.bookmaker_id ? `&middot; BM: ${s.bookmaker_id}` : ''}
-          <br/><small>${s.notes || ''}</small>
+          &nbsp;· Edge ${(s.edge*100).toFixed(1)}% · Kelly (¼) ${(s.kelly_fraction*100).toFixed(1)}%
+          ${s.bookmaker_id ? ` · BM ${s.bookmaker_id}` : ''}<br/>
+          <small>${s.notes || ''}</small>
         </div>
       `).join('');
-
-      return `
-        <div class="roadmap-phase">
-          <div class="phase-header">
-            <div class="phase-title">${p.name || 'Fixture ' + p.fixture_id}</div>
-            <div class="phase-duration">${p.starting_at ? new Date(p.starting_at).toLocaleString() : ''}</div>
-          </div>
-          ${bestHtml}
-          ${listHtml}
-        </div>
-      `;
+      return bestHtml + listHtml;
     }
 
-    async function startPulse() {
-      if (pulseTimer) clearInterval(pulseTimer);
-      await loadPulse();
-      pulseTimer = setInterval(loadPulse, 10000);
-    }
-
-    function stopPulse() {
-      if (pulseTimer) clearInterval(pulseTimer);
-      pulseTimer = null;
-    }
+    // ---- In-play pulse ----
+    async function startPulse() { if (pulseTimer) clearInterval(pulseTimer); await loadPulse(); pulseTimer = setInterval(loadPulse, 10000); }
+    function stopPulse() { if (pulseTimer) clearInterval(pulseTimer); pulseTimer = null; }
 
     async function loadPulse() {
-      const list = document.getElementById('pulseList');
+      const list = $('pulseList');
       list.innerHTML = 'Loading live snapshot...';
       try {
-        const res = await fetch('/api/live-pulse');
+        const res = await fetch('/api/inplay');
         const data = await safeJson(res);
-        const items = (data && data.live) || [];
-        if (!items.length) {
-          list.innerHTML = '<p>No live matches at the moment.</p>';
-          return;
-        }
-        list.innerHTML = items.map(it => {
-          const mk = it.markets_available || {};
-          const mrk = [];
-          if (mk.FT_1X2) mrk.push('1X2');
-          if (mk.OU) mrk.push('OU 2.5');
-          const labels = mrk.length ? mrk.join(', ') : '—';
-          return `
-            <div class="recommendation-item" style="border-left-color:#667eea">
-              <strong>${it.name || ('Fixture ' + it.fixture_id)}</strong><br/>
-              Time: ${it.time ?? '-'}' &middot; Last event: ${it.last_event_min ?? '-'}' <br/>
-              Scores: ${it.scores ? JSON.stringify(it.scores) : '-'} <br/>
-              Markets: ${labels} &middot; Overround(1X2): ${it.overround_ft_1x2 ?? '-'}%
-            </div>
-          `;
-        }).join('');
+        const items = (data && data.data) || [];
+        if (!items.length) { list.innerHTML = '<p>No live matches at the moment.</p>'; return; }
+        list.innerHTML = items.map(it => `
+          <div class="card">
+            <strong>${it.name || ('Fixture ' + it.id)}</strong><br/>
+            Time: ${(it.time && it.time.minute) ?? '-'}' · Scores: ${it.scores ? JSON.stringify(it.scores) : '-'} · State: ${it.state ? JSON.stringify(it.state) : '-'}
+          </div>
+        `).join('');
       } catch (e) {
-        list.innerHTML = `<div class="status error">Error: ${e.message}</div>`;
+        list.innerHTML = `<div class="card" style="border-left-color:#e74c3c">Error: ${e.message}</div>`;
       }
     }
 
+    // ---- Report ----
     async function downloadReport() {
-      const button = document.getElementById('downloadBtn');
-      const originalText = button.textContent;
-      button.disabled = true;
-      button.textContent = '📥 Generating Report...';
+      const button = $('downloadBtn'); const old = button.textContent;
+      button.disabled = true; button.textContent = '📥 Generating Report...';
       try {
         const res = await fetch('/api/download-report');
         if (!res.ok) {
@@ -411,16 +426,13 @@
         const blob = await res.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = `sportmonks_test_results_${new Date().toISOString().slice(0,10)}.json`;
-        a.click();
+        a.href = url; a.download = `sportmonks_test_results_${new Date().toISOString().slice(0,10)}.json`; a.click();
         window.URL.revokeObjectURL(url);
         button.textContent = '✅ Downloaded!';
-        setTimeout(() => { button.textContent = originalText; button.disabled = false; }, 2000);
+        setTimeout(() => { button.textContent = old; button.disabled = false; }, 1500);
       } catch (err) {
         alert('Error downloading report: ' + err.message);
-        button.textContent = originalText;
-        button.disabled = false;
+        button.textContent = old; button.disabled = false;
       }
     }
 
