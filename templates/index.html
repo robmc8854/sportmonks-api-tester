@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SportMonks API Tester</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+```
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+        color: #333;
+    }
+    
+    .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+    
+    .header {
+        background: linear-gradient(135deg, #2c3e50, #34495e);
+        color: white;
+        padding: 30px 20px;
+        text-align: center;
+    }
+    
+    .header h1 {
+        font-size: 1.8em;
+        margin-bottom: 10px;
+    }
+    
+    .header p {
+        opacity: 0.9;
+        font-size: 0.9em;
+    }
+    
+    .content {
+        padding: 30px 20px;
+    }
+    
+    .form-group {
+        margin-bottom: 25px;
+    }
+    
+    label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: #2c3e50;
+    }
+    
+    input[type="text"] {
+        width: 100%;
+        padding: 15px;
+        border: 2px solid #e0e6ed;
+        border-radius: 12px;
+        font-size: 16px;
+        transition: border-color 0.3s ease;
+    }
+    
+    input[type="text"]:focus {
+        outline: none;
+        border-color: #667eea;
+    }
+    
+    .btn {
+        width: 100%;
+        padding: 18px;
+        border: none;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+    }
+    
+    .btn-danger {
+        background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+        color: white;
+        margin-top: 10px;
+    }
+    
+    .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+    }
+    
+    .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+    
+    .progress {
+        background: #f8f9fa;
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 20px 0;
+        height: 8px;
+    }
+    
+    .progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #667eea, #764ba2);
+        transition: width 0.5s ease;
+        width: 0%;
+    }
+    
+    .status {
+        text-align: center;
+        margin: 20px 0;
+        padding: 15px;
+        border-radius: 12px;
+        font-weight: 500;
+    }
+    
+    .status.testing {
+        background: #e3f2fd;
+        color: #1565c0;
+    }
+    
+    .status.completed {
+        background: #e8f5e8;
+        color: #2e7d32;
+    }
+    
+    .status.error {
+        background: #ffebee;
+        color: #c62828;
+    }
+    
+    .results {
+        margin-top: 30px;
+    }
+    
+    .summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 15px;
+        margin-bottom: 30px;
+    }
+    
+    .stat-card {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 12px;
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 2em;
+        font-weight: bold;
+        color: #2c3e50;
+    }
+    
+    .stat-label {
+        font-size: 0.8em;
+        color: #666;
+        margin-top: 5px;
+    }
+    
+    .endpoint-result {
+        background: white;
+        border: 1px solid #e0e6ed;
+        border-radius: 12px;
+        margin-bottom: 15px;
+        overflow: hidden;
+    }
+    
+    .endpoint-header {
+        padding: 15px 20px;
+        background: #f8f9fa;
+        border-bottom: 1px solid #e0e6ed;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .endpoint-name {
+        font-weight: 600;
+        color: #2c3e50;
+    }
+    
+    .status-badge {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.8em;
+        font-weight: 500;
+    }
+    
+    .status-success {
+        background: #e8f5e8;
+        color: #2e7d32;
+    }
+    
+    .status-error {
+        background: #ffebee;
+        color: #c62828;
+    }
+    
+    .endpoint-details {
+        padding: 15px 20px;
+        font-size: 0.9em;
+        color: #666;
+    }
+    
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+    }
+    
+    .download-section {
+        margin-top: 30px;
+        text-align: center;
+    }
+    
+    .hidden {
+        display: none;
+    }
+    
+    @media (max-width: 480px) {
+        body {
+            padding: 10px;
+        }
+        
+        .content {
+            padding: 20px 15px;
+        }
+        
+        .summary {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+```
+
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚽ SportMonks API Tester</h1>
+            <p>Test betting endpoints from your mobile device</p>
+        </div>
+
+```
+    <div class="content">
+        <form id="testForm">
+            <div class="form-group">
+                <label for="apiToken">SportMonks API Token</label>
+                <input type="text" id="apiToken" placeholder="Enter your API token..." required>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" id="startBtn">
+                Start API Tests
+            </button>
+            
+            <button type="button" class="btn btn-danger hidden" id="stopBtn">
+                Stop Testing
+            </button>
+        </form>
+        
+        <div id="progressSection" class="hidden">
+            <div class="progress">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <div class="status testing" id="statusText">
+                Preparing tests...
+            </div>
+        </div>
+        
+        <div id="resultsSection" class="results hidden">
+            <div class="summary" id="summaryStats"></div>
+            <div id="endpointResults"></div>
+            
+            <div class="download-section">
+                <button class="btn btn-primary" id="downloadBtn">
+                    📄 Download Report
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let testInterval;
+    let isTestRunning = false;
+
+    document.getElementById('testForm').addEventListener('submit', startTest);
+    document.getElementById('stopBtn').addEventListener('click', stopTest);
+    document.getElementById('downloadBtn').addEventListener('click', downloadReport);
+
+    async function startTest(e) {
+        e.preventDefault();
+        
+        const apiToken = document.getElementById('apiToken').value.trim();
+        if (!apiToken) {
+            alert('Please enter your API token');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/start-test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_token: apiToken })
+            });
+
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to start test');
+            }
+
+            isTestRunning = true;
+            updateUI();
+            startProgressPolling();
+
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+
+    async function stopTest() {
+        try {
+            await fetch('/api/stop-test', { method: 'POST' });
+            isTestRunning = false;
+            updateUI();
+        } catch (error) {
+            console.error('Error stopping test:', error);
+        }
+    }
+
+    function updateUI() {
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const progressSection = document.getElementById('progressSection');
+
+        if (isTestRunning) {
+            startBtn.classList.add('hidden');
+            stopBtn.classList.remove('hidden');
+            progressSection.classList.remove('hidden');
+        } else {
+            startBtn.classList.remove('hidden');
+            stopBtn.classList.add('hidden');
+        }
+    }
+
+    function startProgressPolling() {
+        testInterval = setInterval(async () => {
+            try {
+                const response = await fetch('/api/test-progress');
+                const data = await response.json();
+                
+                updateProgress(data.progress);
+                
+                if (data.progress.status === 'completed' || data.progress.status.includes('error')) {
+                    clearInterval(testInterval);
+                    isTestRunning = false;
+                    updateUI();
+                    await loadResults();
+                }
+            } catch (error) {
+                console.error('Error fetching progress:', error);
+            }
+        }, 1000);
+    }
+
+    function updateProgress(progress) {
+        const progressBar = document.getElementById('progressBar');
+        const statusText = document.getElementById('statusText');
+        
+        const percentage = progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
+        progressBar.style.width = percentage + '%';
+        
+        if (progress.status === 'running') {
+            statusText.textContent = `Testing ${progress.current_test || 'endpoint'} (${progress.current}/${progress.total})`;
+            statusText.className = 'status testing';
+        } else if (progress.status === 'completed') {
+            statusText.textContent = 'Tests completed successfully!';
+            statusText.className = 'status completed';
+        } else if (progress.status.includes('error')) {
+            statusText.textContent = 'Error: ' + progress.status;
+            statusText.className = 'status error';
+        }
+    }
+
+    async function loadResults() {
+        try {
+            const response = await fetch('/api/test-results');
+            const data = await response.json();
+            
+            displayResults(data);
+            document.getElementById('resultsSection').classList.remove('hidden');
+            
+        } catch (error) {
+            console.error('Error loading results:', error);
+        }
+    }
+
+    function displayResults(data) {
+        const summary = data.summary;
+        const results = data.results;
+        
+        // Update summary stats
+        document.getElementById('summaryStats').innerHTML = `
+            <div class="stat-card">
+                <div class="stat-value">${summary.total || 0}</div>
+                <div class="stat-label">Total Tests</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color: #2e7d32">${summary.successful || 0}</div>
+                <div class="stat-label">Successful</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color: #c62828">${summary.failed || 0}</div>
+                <div class="stat-label">Failed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${summary.success_rate || 0}%</div>
+                <div class="stat-label">Success Rate</div>
+            </div>
+        `;
+        
+        // Display individual results
+        const resultsHTML = results.map(result => `
+            <div class="endpoint-result">
+                <div class="endpoint-header">
+                    <div class="endpoint-name">${result.endpoint}</div>
+                    <div class="status-badge ${result.success ? 'status-success' : 'status-error'}">
+                        ${result.success ? 'Success' : 'Failed'}
+                    </div>
+                </div>
+                <div class="endpoint-details">
+                    <div class="detail-row">
+                        <span>Status Code:</span>
+                        <span>${result.status_code}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span>Response Time:</span>
+                        <span>${result.response_time.toFixed(2)}s</span>
+                    </div>
+                    <div class="detail-row">
+                        <span>Data Count:</span>
+                        <span>${result.data_count}</span>
+                    </div>
+                    ${result.errors.length > 0 ? `
+                    <div class="detail-row">
+                        <span>Errors:</span>
+                        <span style="color: #c62828">${result.errors.join(', ')}</span>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+        `).join('');
+        
+        document.getElementById('endpointResults').innerHTML = resultsHTML;
+    }
+
+    async function downloadReport() {
+        try {
+            const response = await fetch('/api/download-report');
+            const data = await response.json();
+            
+            if (response.ok && data.data) {
+                const blob = new Blob([data.data], { type: 'application/json' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'sportmonks_test_results.json';
+                a.click();
+                window.URL.revokeObjectURL(url);
+            } else {
+                throw new Error(data.error || 'Failed to download report');
+            }
+        } catch (error) {
+            alert('Error downloading report: ' + error.message);
+        }
+    }
+</script>
+```
+
+</body>
+</html>
