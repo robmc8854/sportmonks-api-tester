@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """
-COMPLETE PROFESSIONAL SPORTMONKS BETTING BOT ANALYZER
-- Tests a broad map of v3 endpoints (some may 403/404 on your plan—handled safely)
-- Discovers today's fixtures & in-play matches
-- Fetches per-fixture odds (markets 1=1X2, 80=Over/Under) from the correct odds service
-- Computes fair probabilities, edges & Kelly (book-only baseline)
-- Provides JSON report + helper endpoints for your front-end
+COMPLETE ENHANCED SPORTMONKS BETTING BOT ANALYZER
+
+- Fixed v3 API parameter handling and authentication
+- Comprehensive endpoint testing with proper error handling
+- AI prediction capabilities for betting analysis (optional)
+- Enhanced debugging and subscription tier detection
 """
 
-import io
 import json
 import os
 import threading
@@ -16,21 +15,42 @@ import time
 from dataclasses import dataclass, asdict, field
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
+import logging
 
 import requests
-from flask import Flask, jsonify, render_template, request, send_file
-
-# Optional CORS: app runs fine even if this isn't installed.
-try:
-    from flask_cors import CORS
-    _HAS_CORS = True
-except Exception:
-    CORS = None
-    _HAS_CORS = False
-
+from flask import Flask, jsonify, request
 
 # ==============================
-# Data Models
+# Optional imports
+# ==============================
+
+try:
+    from flask_cors import CORS  # type: ignore
+    _HAS_CORS = True
+except Exception:
+    CORS = None  # type: ignore
+    _HAS_CORS = False
+
+try:
+    import numpy as np  # type: ignore
+    from sklearn.ensemble import RandomForestClassifier  # type: ignore
+    from sklearn.preprocessing import StandardScaler  # type: ignore
+    _HAS_ML = True
+except Exception:
+    np = None  # type: ignore
+    RandomForestClassifier = None  # type: ignore
+    StandardScaler = None  # type: ignore
+    _HAS_ML = False
+
+# ==============================
+# Configure logging
+# ==============================
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# ==============================
+# Enhanced Data Models
 # ==============================
 
 @dataclass
@@ -48,10 +68,23 @@ class EndpointResult:
     analysis: Dict
     errors: List[str] = field(default_factory=list)
     recommendations: List[str] = field(default_factory=list)
+    subscription_tier_required: str = "basic"
+    rate_limit_info: Dict = field(default_factory=dict)
 
+@dataclass
+class BettingPrediction:
+    fixture_id: int
+    home_team: str
+    away_team: str
+    predicted_outcome: str  # "1", "X", "2"
+    confidence: float
+    expected_home_goals: float
+    expected_away_goals: float
+    recommended_bets: List[Dict]
+    risk_assessment: str
 
 # ==============================
-# Analyzer
+# Complete Enhanced Analyzer
 # ==============================
 
 class CompleteBettingAnalyzer:
@@ -60,38 +93,116 @@ class CompleteBettingAnalyzer:
         self.base_url = "https://api.sportmonks.com/v3/football"
         self.odds_base_url = "https://api.sportmonks.com/v3/odds"
 
+        # Enhanced session setup
         self.session = requests.Session()
-        # v3 supports api_token as a query param on all endpoints
-        self.session.params = {"api_token": api_token}
-        # Optional header auth: must be Bearer <token>
+        self.session.timeout = 30
+
+        # v3: include both header Bearer and api_token param for compatibility
         self.session.headers.update({
             "Authorization": f"Bearer {api_token}",
             "Accept": "application/json",
             "Content-Type": "application/json",
+            "User-Agent": "SportMonks-Enhanced-Bot/2.0",
         })
 
+        # Core data storage
         self.test_results: List[EndpointResult] = []
         self.discovered_data: Dict[str, List[Any]] = {
             "fixture_ids": [],
             "team_ids": [],
             "league_ids": [],
+            "season_ids": [],
             "bookmaker_ids": [],
             "market_ids": [],
+            "player_ids": [],
+            "venue_ids": [],
         }
+
+        # Progress tracking
         self.testing_progress = {
             "current": 0,
             "total": 0,
             "status": "idle",
             "current_test": "",
             "phase": "idle",
+            "detailed_log": [],
+            "errors_encountered": 0,
+            "success_count": 0,
         }
+
         self.is_testing = False
         self.complete_analysis: Dict[str, Any] = {}
+        self.subscription_info: Dict[str, Any] = {}
 
-    # -----------------------
-    # Endpoints to test (FULL MAP-ish; some are speculative and may 404)
-    # -----------------------
-    def get_all_endpoints(self) -> List[Dict]:
+        # ML Models (if available)
+        if _HAS_ML:
+            self.outcome_predictor = None
+            self.goals_predictor = None
+            self.scaler = StandardScaler()
+
+    # ------------------------------
+
+    def _enhanced_get_json(
+        self, url: str, params: Dict = None, timeout: int = 30
+    ) -> Tuple[int, Dict, float, Optional[str]]:
+        """Enhanced HTTP method with v3 fixes and detailed logging"""
+        start = time.time()
+
+        try:
+            # Always include api_token in params
+            request_params = {"api_token": self.api_token}
+            if params:
+                request_params.update(params)
+
+            # Make request with both auth methods
+            response = self.session.get(url, params=request_params, timeout=timeout)
+            elapsed = time.time() - start
+
+            # Enhanced error logging
+            if response.status_code != 200:
+                error_details = {
+                    "url": url,
+                    "params": request_params,
+                    "status": response.status_code,
+                    "content_preview": response.text[:300] if response.text else "No content",
+                }
+
+                if response.status_code == 403:
+                    logger.warning(f"403 FORBIDDEN - Subscription issue: {url}")
+                elif response.status_code == 422:
+                    logger.warning(f"422 VALIDATION ERROR - Parameter issue: {error_details}")
+                elif response.status_code == 404:
+                    logger.warning(f"404 NOT FOUND - Endpoint issue: {url}")
+                elif response.status_code == 429:
+                    logger.warning(f"429 RATE LIMIT - Slow down requests: {url}")
+
+            # Parse JSON safely
+            try:
+                json_data = response.json() if response.status_code == 200 else {}
+            except Exception:
+                json_data = {}
+
+            return response.status_code, json_data, elapsed, None
+
+        except requests.exceptions.Timeout:
+            elapsed = time.time() - start
+            logger.error(f"TIMEOUT after {timeout}s: {url}")
+            return 0, {}, elapsed, f"Request timeout after {timeout}s"
+
+        except requests.exceptions.RequestException as e:
+            elapsed = time.time() - start
+            logger.error(f"REQUEST ERROR: {url} - {str(e)}")
+            return 0, {}, elapsed, f"Request failed: {str(e)[:200]}"
+
+        except Exception as e:
+            elapsed = time.time() - start
+            logger.error(f"UNEXPECTED ERROR: {url} - {str(e)}")
+            return 0, {}, elapsed, f"Unexpected error: {str(e)[:200]}"
+
+    # ------------------------------
+
+    def get_comprehensive_endpoints(self) -> List[Dict]:
+        """Comprehensive endpoint list with v3 fixes and proper parameters"""
         today = datetime.utcnow().strftime("%Y-%m-%d")
         tomorrow = (datetime.utcnow() + timedelta(days=1)).strftime("%Y-%m-%d")
         yesterday = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -99,329 +210,314 @@ class CompleteBettingAnalyzer:
         fb = self.base_url
         ob = self.odds_base_url
 
-        endpoints: List[Dict] = []
+        endpoints: List[Dict[str, Any]] = []
 
-        # Live
+        # CRITICAL BETTING DATA
         endpoints += [
-            {"name": "Live Scores", "url": f"{fb}/livescores", "category": "Live"},
-            {"name": "Live Scores In-play", "url": f"{fb}/livescores/inplay", "category": "Live"},
-            {"name": "Live Latest Updates", "url": f"{fb}/livescores/latest", "category": "Live"},
+            {
+                "name": "Today Fixtures Complete",
+                "url": f"{fb}/fixtures/date/{today}",
+                "params": {"include": "participants,league,venue,state,scores,events.type"},
+                "category": "Fixtures",
+                "tier": "basic",
+                "priority": "critical",
+            },
+            {
+                "name": "Tomorrow Fixtures",
+                "url": f"{fb}/fixtures/date/{tomorrow}",
+                "params": {"include": "participants,league,venue,state"},
+                "category": "Fixtures",
+                "tier": "basic",
+                "priority": "high",
+            },
+            {
+                "name": "Recent Results",
+                "url": f"{fb}/fixtures/date/{yesterday}",
+                "params": {"include": "participants,league,scores,events.type"},
+                "category": "Fixtures",
+                "tier": "basic",
+                "priority": "high",
+            },
         ]
 
-        # Fixtures
+        # Live data
         endpoints += [
-            {"name": "All Fixtures", "url": f"{fb}/fixtures?per_page=50", "category": "Fixtures"},
-            {"name": "Today's Fixtures", "url": f"{fb}/fixtures/date/{today}?include=participants,league,venue,state", "category": "Fixtures"},
-            {"name": "Tomorrow's Fixtures", "url": f"{fb}/fixtures/date/{tomorrow}", "category": "Fixtures"},
-            {"name": "Yesterday's Results", "url": f"{fb}/fixtures/date/{yesterday}", "category": "Fixtures"},
-            {"name": "Fixtures Between Dates", "url": f"{fb}/fixtures/between/{today}/{tomorrow}", "category": "Fixtures"},
-            {"name": "Latest Fixture Updates", "url": f"{fb}/fixtures/latest", "category": "Fixtures"},
-            # Heavy includes (may be slow or plan-limited)
-            {"name": "Fixtures With Rich Includes", "url": f"{fb}/fixtures/date/{today}?include=participants,league,venue,state,statistics,events,lineups,odds", "category": "Fixtures"},
+            {
+                "name": "Live Scores All",
+                "url": f"{fb}/livescores",
+                "params": {"include": "participants,league,scores,events.type"},
+                "category": "Live",
+                "tier": "basic",
+                "priority": "critical",
+            },
+            {
+                "name": "Live In-play Only",
+                "url": f"{fb}/livescores/inplay",
+                "params": {"include": "participants,league,scores,events.type,events.player"},
+                "category": "Live",
+                "tier": "basic",
+                "priority": "critical",
+            },
+            {
+                "name": "Live Latest Updates",
+                "url": f"{fb}/livescores/latest",
+                "params": {"include": "participants,league,scores"},
+                "category": "Live",
+                "tier": "basic",
+                "priority": "high",
+            },
         ]
 
-        # Odds (correct service)
+        # Odds (may require premium)
         endpoints += [
-            {"name": "Pre-match Odds (All)", "url": f"{ob}/pre-match?per_page=100", "category": "Odds"},
-            {"name": "In-play Odds (All)", "url": f"{ob}/inplay?per_page=100", "category": "Odds"},
-            {"name": "Latest Pre-match Odds Updates", "url": f"{ob}/pre-match/latest?per_page=50", "category": "Odds"},
-            {"name": "Markets", "url": f"{ob}/markets", "category": "Markets"},
-            {"name": "Bookmakers", "url": f"{ob}/bookmakers", "category": "Bookmakers"},
+            {
+                "name": "Pre-match Odds Active",
+                "url": f"{ob}/pre-match",
+                "params": {"include": "fixture,bookmaker,market", "per_page": "200"},
+                "category": "Odds",
+                "tier": "premium",
+                "priority": "critical",
+            },
+            {
+                "name": "In-play Odds Live",
+                "url": f"{ob}/inplay",
+                "params": {"include": "fixture,bookmaker,market", "per_page": "200"},
+                "category": "Odds",
+                "tier": "premium",
+                "priority": "critical",
+            },
+            {
+                "name": "Pre-match Latest Updates",
+                "url": f"{ob}/pre-match/latest",
+                "params": {"include": "fixture,bookmaker,market", "per_page": "100"},
+                "category": "Odds",
+                "tier": "premium",
+                "priority": "high",
+            },
         ]
 
-        # Leagues / Seasons
+        # Market / bookmaker refs
         endpoints += [
-            {"name": "Leagues", "url": f"{fb}/leagues?per_page=50", "category": "Leagues"},
-            {"name": "Seasons", "url": f"{fb}/seasons?per_page=50", "category": "Seasons"},
+            {
+                "name": "All Markets",
+                "url": f"{ob}/markets",
+                "params": {"per_page": "250"},
+                "category": "Markets",
+                "tier": "basic",
+                "priority": "high",
+            },
+            {
+                "name": "All Bookmakers",
+                "url": f"{ob}/bookmakers",
+                "params": {"per_page": "250"},
+                "category": "Bookmakers",
+                "tier": "basic",
+                "priority": "high",
+            },
         ]
 
-        # Head-to-head sample (correct path)
+        # PREMIUM FEATURES (predictions)
         endpoints += [
-            {"name": "Head2Head Example", "url": f"{fb}/head2head/1/2?per_page=5", "category": "Fixtures"},
+            {
+                "name": "Predictions Probabilities",
+                "url": f"{fb}/predictions/probabilities",
+                "params": {"include": "fixture,predictions", "per_page": "100"},
+                "category": "Predictions",
+                "tier": "premium",
+                "priority": "critical",
+            },
+            {
+                "name": "Value Bets",
+                "url": f"{fb}/predictions/value-bets",
+                "params": {"include": "fixture,predictions,odds", "per_page": "100"},
+                "category": "Predictions",
+                "tier": "premium",
+                "priority": "critical",
+            },
+            {
+                "name": "Predictions for Today",
+                "url": f"{fb}/predictions/probabilities/fixtures/date/{today}",
+                "params": {"include": "fixture,predictions"},
+                "category": "Predictions",
+                "tier": "premium",
+                "priority": "high",
+            },
         ]
 
-        # Predictions (likely premium; expect 403)
+        # SUBSCRIPTION & DEBUGGING
         endpoints += [
-            {"name": "Predictions: Probabilities", "url": f"{fb}/predictions/probabilities", "category": "Predictions"},
-            {"name": "Predictions: Value Bets", "url": f"{fb}/predictions/valuebets", "category": "Predictions"},
+            {
+                "name": "My Subscription Info",
+                "url": f"{fb}/my/subscription",
+                "params": {},
+                "category": "Subscription",
+                "tier": "basic",
+                "priority": "critical",
+            },
+            {
+                "name": "My Available Leagues",
+                "url": f"{fb}/my/leagues",
+                "params": {"per_page": "250"},
+                "category": "Subscription",
+                "tier": "basic",
+                "priority": "high",
+            },
+            {
+                "name": "My Resources",
+                "url": f"{fb}/my/resources",
+                "params": {},
+                "category": "Subscription",
+                "tier": "basic",
+                "priority": "medium",
+            },
+            {
+                "name": "My Enrichments",
+                "url": f"{fb}/my/enrichments",
+                "params": {},
+                "category": "Subscription",
+                "tier": "basic",
+                "priority": "medium",
+            },
         ]
 
-        # Broad coverage (lower betting value but kept for completeness)
+        # SUPPORTING DATA
         endpoints += [
-            {"name": "All Teams", "url": f"{fb}/teams?per_page=50", "category": "Teams"},
-            {"name": "All Players", "url": f"{fb}/players?per_page=50", "category": "Players"},
-            {"name": "All Venues", "url": f"{fb}/venues?per_page=50", "category": "Venues"},
-            {"name": "All Referees", "url": f"{fb}/referees?per_page=50", "category": "Referees"},
-            {"name": "All Coaches", "url": f"{fb}/coaches?per_page=50", "category": "Coaches"},
-            {"name": "All Transfers", "url": f"{fb}/transfers?per_page=50", "category": "Transfers"},
-            {"name": "All States", "url": f"{fb}/states?per_page=50", "category": "States"},
-            {"name": "All Types", "url": f"{fb}/types?per_page=50", "category": "Types"},
-            {"name": "Countries", "url": f"{fb}/countries?per_page=50", "category": "Geography"},
-            {"name": "Continents", "url": f"{fb}/continents?per_page=50", "category": "Geography"},
-            {"name": "Cities", "url": f"{fb}/cities?per_page=50", "category": "Geography"},
-            {"name": "Regions", "url": f"{fb}/regions?per_page=50", "category": "Geography"},
-            {"name": "Live Standings", "url": f"{fb}/standings/live", "category": "Standings"},
+            {
+                "name": "Active Leagues",
+                "url": f"{fb}/leagues",
+                "params": {"include": "country,seasons", "filter[active]": "true", "per_page": "100"},
+                "category": "Leagues",
+                "tier": "basic",
+                "priority": "medium",
+            },
+            {
+                "name": "Current Seasons",
+                "url": f"{fb}/seasons",
+                "params": {"include": "league,stages", "filter[active]": "true", "per_page": "100"},
+                "category": "Seasons",
+                "tier": "basic",
+                "priority": "medium",
+            },
+            {
+                "name": "Teams with Stats",
+                "url": f"{fb}/teams",
+                "params": {"include": "country,venue,activeSeasons", "per_page": "100"},
+                "category": "Teams",
+                "tier": "basic",
+                "priority": "medium",
+            },
+            {
+                "name": "Live Standings",
+                "url": f"{fb}/standings/live",
+                "params": {"include": "team,league,season,form.fixtures.participants", "per_page": "100"},
+                "category": "Standings",
+                "tier": "basic",
+                "priority": "medium",
+            },
         ]
 
-        # Speculative v3 paths (kept per your “full map” request; may 404)
-        speculative = [
-            {"name": "Topscorers by Season (spec)", "url": f"{fb}/topscorers/seasons/1", "category": "Topscorers"},
-            {"name": "Schedules by Season (spec)", "url": f"{fb}/schedules/seasons/1", "category": "Schedules"},
-            {"name": "TV Stations (spec)", "url": f"{fb}/tv-stations", "category": "TV"},
-            {"name": "Expected Goals by Fixture (spec)", "url": f"{fb}/expected-goals/fixtures/1", "category": "xG"},
-            {"name": "Rivals by Team (spec)", "url": f"{fb}/rivals/teams/1", "category": "Rivals"},
-            {"name": "Player Statistics by Season (spec)", "url": f"{fb}/statistics/players/seasons/1", "category": "Statistics"},
-            {"name": "Team Statistics by Season (spec)", "url": f"{fb}/statistics/teams/seasons/1", "category": "Statistics"},
-        ]
-        endpoints += speculative
-
-        # Subscription info (if supported)
+        # HISTORICAL & ANALYTICAL DATA
         endpoints += [
-            {"name": "My Leagues", "url": f"{fb}/my/leagues", "category": "Subscription"},
-            {"name": "My Resources", "url": f"{fb}/my/resources", "category": "Subscription"},
-            {"name": "My Enrichments", "url": f"{fb}/my/enrichments", "category": "Subscription"},
+            {
+                "name": "Head-to-Head Sample",
+                "url": f"{fb}/head2head/1/2",
+                "params": {"include": "participants,scores,league,events.type", "per_page": "10"},
+                "category": "Historical",
+                "tier": "basic",
+                "priority": "low",
+            },
+            {
+                "name": "Players Active",
+                "url": f"{fb}/players",
+                "params": {"include": "team,position,statistics", "per_page": "100"},
+                "category": "Players",
+                "tier": "basic",
+                "priority": "low",
+            },
         ]
 
+        # REFERENCE DATA
+        endpoints += [
+            {
+                "name": "Countries",
+                "url": f"{fb}/countries",
+                "params": {"per_page": "250"},
+                "category": "Reference",
+                "tier": "basic",
+                "priority": "low",
+            },
+            {
+                "name": "Venues",
+                "url": f"{fb}/venues",
+                "params": {"include": "city,country", "per_page": "100"},
+                "category": "Reference",
+                "tier": "basic",
+                "priority": "low",
+            },
+            {
+                "name": "States/Statuses",
+                "url": f"{fb}/states",
+                "params": {"per_page": "100"},
+                "category": "Reference",
+                "tier": "basic",
+                "priority": "low",
+            },
+        ]
+
+        priority_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+        endpoints.sort(key=lambda x: priority_order.get(x.get("priority", "low"), 3))
         return endpoints
 
-    # -----------------------
-    # Helpers: odds math
-    # -----------------------
-    @staticmethod
-    def _imp(odds: float) -> float:
-        return 1.0 / float(odds) if odds and odds > 1.0 else 0.0
-
-    @staticmethod
-    def _de_overround(probs: List[float]) -> List[float]:
-        s = sum(probs)
-        return [p / s for p in probs] if s > 0 else probs
-
-    @staticmethod
-    def _kelly(p: float, b: float) -> float:
-        if b <= 0:
-            return 0.0
-        f = (p * (b + 1) - 1) / b
-        return max(0.0, f)
-
-    def _extract_best_1x2_ou(self, odds_rows: List[Dict]) -> Dict[str, Any]:
-        best_1x2 = {"Home": None, "Draw": None, "Away": None}
-        best_1x2_bm = {"Home": None, "Draw": None, "Away": None}
-        ou_over = None
-        ou_under = None
-
-        for o in odds_rows or []:
-            market_id = o.get("market_id")
-            label = (o.get("label") or o.get("name") or "").strip().lower()
-            val = o.get("value")
-            bm = o.get("bookmaker_id")
-            try:
-                dec = float(val) if val is not None else None
-            except Exception:
-                dec = None
-
-            # Market 1 -> 1X2
-            if market_id == 1 and dec:
-                key = None
-                if label in ("1", "home", "home win", "local", "localteam", "home team"):
-                    key = "Home"
-                elif label in ("x", "draw", "tie"):
-                    key = "Draw"
-                elif label in ("2", "away", "away win", "visitor", "visitorteam", "away team"):
-                    key = "Away"
-                elif "home" in label or "local" in label:
-                    key = "Home"
-                elif "away" in label or "visitor" in label:
-                    key = "Away"
-                elif "draw" in label:
-                    key = "Draw"
-                if key and (not best_1x2[key] or dec > best_1x2[key]):
-                    best_1x2[key] = dec
-                    best_1x2_bm[key] = bm
-
-            # Market 80 -> Over/Under (try to pick 2.5 line if present)
-            if market_id == 80 and dec:
-                l2 = label.replace(" ", "")
-                if ("over" in l2 or l2.startswith("o")) and ("25" in l2 or "2.5" in l2):
-                    if not ou_over or dec > ou_over[0]:
-                        ou_over = (dec, bm, "Over 2.5")
-                if ("under" in l2 or l2.startswith("u")) and ("25" in l2 or "2.5" in l2):
-                    if not ou_under or dec > ou_under[0]:
-                        ou_under = (dec, bm, "Under 2.5")
-
-        return {"best_1x2": best_1x2, "best_1x2_bm": best_1x2_bm, "ou_over": ou_over, "ou_under": ou_under}
-
-    def compute_book_edges(self, odds_rows: List[Dict]) -> Dict[str, Any]:
-        picks: List[Dict[str, Any]] = []
-        ext = self._extract_best_1x2_ou(odds_rows)
-
-        # 1X2
-        b = ext["best_1x2"]
-        bm = ext["best_1x2_bm"]
-        if all(b.get(k) for k in ("Home", "Draw", "Away")):
-            oH, oD, oA = b["Home"], b["Draw"], b["Away"]
-            pH, pD, pA = self._imp(oH), self._imp(oD), self._imp(oA)
-            fH, fD, fA = self._de_overround([pH, pD, pA])
-            book_pct = (1.0 / oH + 1.0 / oD + 1.0 / oA) * 100.0
-
-            for label, odds, fair_p, bid in [
-                ("Home", oH, fH, bm.get("Home")),
-                ("Draw", oD, fD, bm.get("Draw")),
-                ("Away", oA, fA, bm.get("Away")),
-            ]:
-                edge = fair_p - self._imp(odds)
-                k = self._kelly(fair_p, odds - 1.0) * 0.25 if edge > 0 else 0.0
-                picks.append({
-                    "market": "1X2",
-                    "pick": label,
-                    "odds": odds,
-                    "implied_prob": round(self._imp(odds), 4),
-                    "fair_prob": round(fair_p, 4),
-                    "edge": round(edge, 4),
-                    "kelly_fraction": round(k, 4),
-                    "bookmaker_id": bid,
-                    "book_percentage": round(book_pct, 2),
-                })
-
-        # O/U 2.5
-        if ext["ou_over"] and ext["ou_under"]:
-            oO, bmo, _ = ext["ou_over"]
-            oU, bmu, _ = ext["ou_under"]
-            pO, pU = self._imp(oO), self._imp(oU)
-            fO, fU = self._de_overround([pO, pU])
-            book_pct = (1.0 / oO + 1.0 / oU) * 100.0
-            for label, odds, fair_p, bid in [("Over 2.5", oO, fO, bmo), ("Under 2.5", oU, fU, bmu)]:
-                edge = fair_p - self._imp(odds)
-                k = self._kelly(fair_p, odds - 1.0) * 0.25 if edge > 0 else 0.0
-                picks.append({
-                    "market": "O/U 2.5",
-                    "pick": label,
-                    "odds": odds,
-                    "implied_prob": round(self._imp(odds), 4),
-                    "fair_prob": round(fair_p, 4),
-                    "edge": round(edge, 4),
-                    "kelly_fraction": round(k, 4),
-                    "bookmaker_id": bid,
-                    "book_percentage": round(book_pct, 2),
-                })
-
-        best = max(picks, key=lambda x: x["edge"], default=None)
-        return {"selections": picks, "best": best}
-
-    # -----------------------
-    # HTTP helpers + test runner
-    # -----------------------
-    def _get_json(self, url: str, timeout: int = 25) -> Tuple[int, Dict, float, Optional[str]]:
-        start = time.time()
-        try:
-            r = self.session.get(url, timeout=timeout)
-            elapsed = time.time() - start
-            ctype = r.headers.get("content-type", "")
-            if ctype.startswith("application/json"):
-                return r.status_code, r.json(), elapsed, None
-            return r.status_code, {}, elapsed, None
-        except Exception as e:
-            return 0, {}, time.time() - start, str(e)[:200]
-
-    def analyze_endpoint_data(self, response_data: Dict, endpoint: Dict) -> Tuple[str, int, Dict, List[str]]:
-        betting_value = "none"
-        quality_score = 0
-        analysis: Dict[str, Any] = {}
-        recommendations: List[str] = []
-
-        if not isinstance(response_data, dict) or "data" not in response_data:
-            return betting_value, quality_score, analysis, ["❌ Invalid response structure"]
-
-        data = response_data["data"]
-        if not data:
-            return betting_value, quality_score, analysis, ["⚠️ Empty dataset"]
-
-        sample = data[0] if isinstance(data, list) and data else data
-        if not isinstance(sample, dict):
-            return betting_value, quality_score, analysis, ["❌ Unexpected data format"]
-
-        # Discovery
-        self._update_discovered(data, endpoint)
-
-        # Heuristic scoring for betting usefulness
-        critical_fields = ["odds", "predictions", "probabilities", "value", "bookmaker_id", "market_id"]
-        high_value_fields = ["fixture_id", "starting_at", "scores", "statistics", "participants"]
-        medium_value_fields = ["league_id", "team_id", "events", "lineup", "form"]
-
-        found_critical = [f for f in critical_fields if f in sample]
-        found_high = [f for f in high_value_fields if f in sample]
-        found_medium = [f for f in medium_value_fields if f in sample]
-
-        quality_score = (len(found_critical) * 25) + (len(found_high) * 15) + (len(found_medium) * 8)
-        if isinstance(data, list):
-            quality_score += min(20, len(data))
-        quality_score = min(100, quality_score)
-
-        if len(found_critical) >= 2:
-            betting_value = "critical"
-        elif len(found_critical) >= 1:
-            betting_value = "high"
-        elif len(found_high) >= 2:
-            betting_value = "medium"
-        elif len(found_high) >= 1:
-            betting_value = "low"
-
-        analysis = {
-            "total_fields": len(sample),
-            "critical_betting_fields": found_critical,
-            "high_value_fields": found_high,
-            "medium_value_fields": found_medium,
-            "data_completeness": len(sample) / max(len(critical_fields + high_value_fields), 1) * 100,
-            "nested_complexity": sum(1 for v in sample.values() if isinstance(v, (dict, list))),
-        }
-
-        if found_critical:
-            if "odds" in found_critical or "value" in found_critical:
-                recommendations.append("🎯 Odds present — core betting possible.")
-            if "predictions" in found_critical or "probabilities" in found_critical:
-                recommendations.append("🤖 Predictions present — AI logic possible.")
-
-        if endpoint["category"] == "Odds" and not found_critical and "value" not in sample:
-            recommendations.append("❌ PROBLEM: Odds-like endpoint missing price fields.")
-
-        if quality_score > 70:
-            recommendations.append("🚀 High-quality data — implement advanced features.")
-        elif quality_score > 40:
-            recommendations.append("✅ Good data — suitable for bot foundation.")
-        else:
-            recommendations.append("⚠️ Limited data — simple strategies only.")
-
-        return betting_value, quality_score, analysis, recommendations
-
-    def _update_discovered(self, data: Any, endpoint: Dict):
-        items = data if isinstance(data, list) else [data]
-        for item in items[:50]:
-            if not isinstance(item, dict):
-                continue
-            if "id" in item:
-                if endpoint["category"] in ["Fixtures", "Live"] and item["id"] not in self.discovered_data["fixture_ids"]:
-                    self.discovered_data["fixture_ids"].append(item["id"])
-                elif endpoint["category"] == "Leagues" and item["id"] not in self.discovered_data["league_ids"]:
-                    self.discovered_data["league_ids"].append(item["id"])
-            if "bookmaker_id" in item and item["bookmaker_id"] not in self.discovered_data["bookmaker_ids"]:
-                self.discovered_data["bookmaker_ids"].append(item["bookmaker_id"])
-            if "market_id" in item and item["market_id"] not in self.discovered_data["market_ids"]:
-                self.discovered_data["market_ids"].append(item["market_id"])
+    # ------------------------------
 
     def test_single_endpoint(self, endpoint: Dict) -> EndpointResult:
-        status_code, response_data, response_time, err = self._get_json(endpoint["url"])
+        """Test single endpoint with comprehensive analysis"""
+        url = endpoint["url"]
+        params = endpoint.get("params", {})
 
-        if err or status_code != 200:
-            error_msg = err or f"HTTP {status_code}"
+        # Log attempt
+        log_msg = f"Testing: {endpoint['name']} ({endpoint.get('tier', 'unknown')} tier)"
+        self.testing_progress["detailed_log"].append(log_msg)
+        logger.info(log_msg)
+
+        # Make request
+        status_code, response_data, response_time, error = self._enhanced_get_json(url, params)
+
+        # Update progress counters
+        if status_code == 200:
+            self.testing_progress["success_count"] += 1
+        else:
+            self.testing_progress["errors_encountered"] += 1
+
+        # Handle failures
+        if error or status_code != 200:
+            errors: List[str] = []
+            recommendations: List[str] = []
+
+            error_msg = error or f"HTTP {status_code}"
+
             if status_code == 403:
-                error_msg += " (access denied/premium)"
+                error_msg += " - Access denied (subscription tier insufficient)"
+                recommendations.append("🔒 Consider upgrading subscription or verify API permissions")
             elif status_code == 404:
-                error_msg += " (not found)"
+                error_msg += " - Endpoint not found or deprecated"
+                recommendations.append("📍 Check SportMonks API documentation for current endpoints")
+            elif status_code == 422:
+                error_msg += " - Invalid parameters or filters"
+                recommendations.append("🔧 Verify parameter format - use filter[field]=value syntax")
             elif status_code == 429:
-                error_msg += " (rate limit)"
+                error_msg += " - Rate limit exceeded"
+                recommendations.append("⏱️ Implement request throttling or upgrade plan")
+            elif status_code == 500:
+                error_msg += " - Server error"
+                recommendations.append("🔄 Retry later or contact SportMonks support")
+
+            errors.append(error_msg)
+
             return EndpointResult(
                 name=endpoint["name"],
                 category=endpoint["category"],
-                url=endpoint["url"],
+                url=url,
                 status_code=status_code,
                 success=False,
                 data_count=0,
@@ -429,28 +525,35 @@ class CompleteBettingAnalyzer:
                 betting_value="none",
                 data_quality=0,
                 sample_data={},
-                analysis={},
-                errors=[error_msg],
-                recommendations=[],
+                analysis={"error_details": error_msg},
+                errors=errors,
+                recommendations=recommendations,
+                subscription_tier_required=endpoint.get("tier", "unknown"),
             )
 
-        betting_value, quality_score, analysis, recs = self.analyze_endpoint_data(response_data, endpoint)
+        # Analyze successful response
+        betting_value, quality_score, analysis, recommendations = self.analyze_response_data(response_data, endpoint)
 
+        # Extract data info
         data_count = 0
-        sample_data = {}
-        if "data" in response_data:
+        sample_data: Dict[str, Any] = {}
+
+        if isinstance(response_data, dict) and "data" in response_data:
             data = response_data["data"]
             if isinstance(data, list):
                 data_count = len(data)
                 sample_data = data[0] if data else {}
             else:
                 data_count = 1
-                sample_data = data
+                sample_data = data if isinstance(data, dict) else {}
+
+        # Update discovered data
+        self.update_discovered_data(response_data, endpoint)
 
         return EndpointResult(
             name=endpoint["name"],
             category=endpoint["category"],
-            url=endpoint["url"],
+            url=url,
             status_code=status_code,
             success=True,
             data_count=data_count,
@@ -459,265 +562,376 @@ class CompleteBettingAnalyzer:
             data_quality=quality_score,
             sample_data=sample_data,
             analysis=analysis,
-            recommendations=recs,
+            errors=[],
+            recommendations=recommendations,
+            subscription_tier_required=endpoint.get("tier", "basic"),
         )
 
-    # -----------------------
-    # Fetchers used by routes
-    # -----------------------
-    def fetch_odds_for_fixture(self, fixture_id: int, markets: str = "1,80") -> Dict[str, Any]:
-        url = f"{self.odds_base_url}/pre-match?filter[fixture_id]={fixture_id}&markets={markets}&per_page=200"
-        status, body, _, _ = self._get_json(url)
-        return {"status": status, "body": body if isinstance(body, dict) else {}, "url": url}
+    # ------------------------------
 
-    def fetch_inplay_context(self) -> Dict[str, Any]:
-        s_live, live, _, _ = self._get_json(f"{self.base_url}/livescores/inplay")
-        stitched = []
-        if s_live == 200 and isinstance(live, dict):
-            for fx in (live.get("data") or []):
-                fid = fx.get("id")
-                if not fid:
-                    continue
-                s_od, od, _, _ = self._get_json(f"{self.odds_base_url}/inplay?filter[fixture_id]={fid}&per_page=200")
-                stitched.append({
-                    "fixture": fx,
-                    "odds": (od.get("data") or []) if s_od == 200 and isinstance(od, dict) else [],
-                })
-        return {"data": stitched}
+    def analyze_response_data(self, response_data: Dict, endpoint: Dict) -> Tuple[str, int, Dict, List[str]]:
+        """Analyze response data for betting value and quality"""
+        if not isinstance(response_data, dict) or "data" not in response_data:
+            return "none", 0, {}, ["❌ Invalid response structure"]
 
-    # -----------------------
-    # Orchestration
-    # -----------------------
-    def run_complete_analysis(self):
-        self.is_testing = True
-        self.test_results = []
-        endpoints = self.get_all_endpoints()
-        self.testing_progress = {
+        data = response_data["data"]
+        if not data:
+            return "none", 0, {}, ["⚠️ Empty dataset - may need specific filters"]
+
+        # Get sample for analysis
+        sample = data[0] if isinstance(data, list) and data else data
+        if not isinstance(sample, dict):
+            return "none", 0, {}, ["❌ Unexpected data format"]
+
+        # Field analysis for betting value
+        critical_betting = ["odds", "value", "decimal", "probability", "predictions", "expected_goals"]
+        high_value = ["fixture_id", "bookmaker_id", "market_id", "starting_at", "participants", "scores"]
+        medium_value = ["league_id", "team_id", "season_id", "events", "statistics", "form"]
+
+        all_fields = self.extract_nested_fields(sample)
+
+        found_critical = [f for f in critical_betting if any(f in field.lower() for field in all_fields)]
+        found_high = [f for f in high_value if any(f in field.lower() for field in all_fields)]
+        found_medium = [f for f in medium_value if any(f in field.lower() for field in all_fields)]
+
+        # Quality scoring
+        quality_score = 0
+        quality_score += len(found_critical) * 35  # Critical fields most valuable
+        quality_score += len(found_high) * 25
+        quality_score += len(found_medium) * 15
+
+        # Data volume bonus
+        data_count = len(data) if isinstance(data, list) else 1
+        quality_score += min(20, data_count)
+
+        # Completeness bonus
+        completeness = self.calculate_data_completeness(sample)
+        quality_score += int(completeness * 10)
+
+        quality_score = min(100, quality_score)
+
+        # Betting value classification
+        if len(found_critical) >= 3:
+            betting_value = "critical"
+        elif len(found_critical) >= 1:
+            betting_value = "high"
+        elif len(found_high) >= 3:
+            betting_value = "medium"
+        elif len(found_high) >= 1:
+            betting_value = "low"
+        else:
+            betting_value = "none"
+
+        # Generate recommendations
+        recommendations: List[str] = []
+        if found_critical:
+            joined = " ".join(found_critical).lower()
+            if "odds" in joined:
+                recommendations.append("🎯 Live odds available - implement real-time betting")
+            if "prediction" in joined:
+                recommendations.append("🤖 AI predictions available - integrate ML models")
+
+        if quality_score > 80:
+            recommendations.append("🚀 Excellent data quality - build advanced strategies")
+        elif quality_score > 60:
+            recommendations.append("✅ Good data - suitable for production betting bot")
+        elif quality_score > 30:
+            recommendations.append("⚠️ Basic data - simple strategies only")
+        else:
+            recommendations.append("❌ Limited value - consider other endpoints")
+
+        analysis = {
+            "total_fields": len(all_fields),
+            "critical_fields": found_critical,
+            "high_value_fields": found_high,
+            "medium_value_fields": found_medium,
+            "data_completeness": round(completeness * 100, 1),
+            "data_volume": data_count,
+            "sample_structure": list(sample.keys())[:10],
+        }
+
+        return betting_value, quality_score, analysis, recommendations
+
+    # ------------------------------
+
+    def extract_nested_fields(self, obj: Any, prefix: str = "") -> List[str]:
+        """Extract all field names from nested object structure"""
+        fields: List[str] = []
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                field_name = f"{prefix}.{key}" if prefix else key
+                fields.append(field_name)
+                if isinstance(value, (dict, list)) and len(str(value)) < 2000:
+                    fields.extend(self.extract_nested_fields(value, field_name))
+        elif isinstance(obj, list) and obj:
+            fields.extend(self.extract_nested_fields(obj[0], f"{prefix}[0]"))
+        return fields
+
+    # ------------------------------
+
+    def calculate_data_completeness(self, obj: Dict) -> float:
+        """Calculate percentage of fields with meaningful values"""
+        total = 0
+        filled = 0
+        for value in obj.values():
+            total += 1
+            if value is not None and value != "" and value != []:
+                filled += 1
+        return filled / max(total, 1)
+
+    # ------------------------------
+
+    def update_discovered_data(self, response_data: Dict, endpoint: Dict):
+        """Update discovered IDs for cross-referencing"""
+        if not isinstance(response_data, dict) or "data" not in response_data:
+            return
+        data = response_data["data"]
+        items = data if isinstance(data, list) else [data]
+        for item in items[:100]:
+            if not isinstance(item, dict):
+                continue
+            if "id" in item:
+                item_id = item["id"]
+                category = endpoint["category"].lower()
+                if category in ["fixtures", "live"] and item_id not in self.discovered_data["fixture_ids"]:
+                    self.discovered_data["fixture_ids"].append(item_id)
+                elif category == "teams" and item_id not in self.discovered_data["team_ids"]:
+                    self.discovered_data["team_ids"].append(item_id)
+                elif category == "leagues" and item_id not in self.discovered_data["league_ids"]:
+                    self.discovered_data["league_ids"].append(item_id)
+            for field_name in ["bookmaker_id", "market_id"]:
+                if field_name in item:
+                    lst_name = f"{field_name}s"
+                    if item[field_name] not in self.discovered_data[lst_name]:
+                        self.discovered_data[lst_name].append(item[field_name])
+
+    # ==============================
+    # ODDS CALCULATION METHODS
+    # ==============================
+
+    @staticmethod
+    def implied_probability(decimal_odds: float) -> float:
+        """Convert decimal odds to implied probability"""
+        try:
+            return 1.0 / float(decimal_odds) if decimal_odds and float(decimal_odds) > 1.0 else 0.0
+        except Exception:
+            return 0.0
+
+    @staticmethod
+    def remove_overround(probabilities: List[float]) -> List[float]:
+        """Remove bookmaker overround to get fair probabilities"""
+        total = sum(probabilities)
+        return [p / total for p in probabilities] if total > 0 else probabilities
+
+    @staticmethod
+    def kelly_criterion(fair_prob: float, decimal_odds: float, max_fraction: float = 0.25) -> float:
+        """Calculate Kelly criterion bet size"""
+        try:
+            d = float(decimal_odds)
+        except Exception:
+            return 0.0
+        if d <= 1:
+            return 0.0
+        kelly_fraction = (fair_prob * d - 1) / (d - 1)
+        return max(0.0, min(kelly_fraction, max_fraction))
+
+    def extract_1x2_odds(self, odds_data: List[Dict]) -> Dict[str, Any]:
+        """Extract 1X2 odds from odds data"""
+        best_odds = {"Home": None, "Draw": None, "Away": None}
+        best_bookmakers = {"Home": None, "Draw": None, "Away": None}
+        for row in odds_data:
+            market_id = row.get("market_id")
+            if market_id != 1:
+                continue
+            label = str(row.get("label") or row.get("name") or "").lower().strip()
+            value = row.get("value")
+            bookmaker_id = row.get("bookmaker_id")
+            try:
+                decimal_odds = float(value) if value is not None else None
+            except Exception:
+                continue
+            if not decimal_odds:
+                continue
+            outcome = None
+            if label in ("1", "home", "home win"):
+                outcome = "Home"
+            elif label in ("x", "draw", "tie"):
+                outcome = "Draw"
+            elif label in ("2", "away", "away win"):
+                outcome = "Away"
+            if outcome and (best_odds[outcome] is None or decimal_odds > best_odds[outcome]):
+                best_odds[outcome] = decimal_odds
+                best_bookmakers[outcome] = bookmaker_id
+        return {"odds": best_odds, "bookmakers": best_bookmakers}
+
+    def calculate_betting_edges(self, odds_data: List[Dict]) -> Dict[str, Any]:
+        """Calculate betting edges and recommendations"""
+        extraction = self.extract_1x2_odds(odds_data)
+        odds = extraction["odds"]
+        bookmakers = extraction["bookmakers"]
+        if not all(odds.get(x) for x in ("Home", "Draw", "Away")):
+            return {"selections": [], "best": None}
+        home_odds, draw_odds, away_odds = odds["Home"], odds["Draw"], odds["Away"]
+        implied = [
+            self.implied_probability(home_odds),
+            self.implied_probability(draw_odds),
+            self.implied_probability(away_odds),
+        ]
+        fair = self.remove_overround(implied)
+        overround = sum(implied) - 1.0
+        outcomes = ["Home", "Draw", "Away"]
+        selections: List[Dict[str, Any]] = []
+        for i, outcome in enumerate(outcomes):
+            current_odds = [home_odds, draw_odds, away_odds][i]
+            fair_prob = fair[i]
+            implied_prob = self.implied_probability(current_odds)
+            edge = fair_prob - implied_prob
+            kelly = self.kelly_criterion(fair_prob, current_odds)
+            selections.append({
+                "outcome": outcome,
+                "odds": current_odds,
+                "implied_prob": round(implied_prob, 4),
+                "fair_prob": round(fair_prob, 4),
+                "edge": round(edge, 4),
+                "kelly_fraction": round(kelly, 4),
+                "bookmaker_id": bookmakers[outcome],
+                "recommended": edge > 0.02 and kelly > 0.01,
+            })
+        best_bet = max(selections, key=lambda x: x["edge"]) if selections else None
+        return {
+            "selections": selections,
+            "best": best_bet,
+            "overround": round(overround, 4),
+            "market_efficiency": round(1 - overround, 4),
+        }
+
+    # ==============================
+    # MAIN ANALYSIS RUNNER
+    # ==============================
+
+    def run_complete_analysis(self) -> Dict[str, Any]:
+        """Run all endpoints and build a summary report."""
+        endpoints = self.get_comprehensive_endpoints()
+        self.testing_progress.update({
             "current": 0,
             "total": len(endpoints),
             "status": "running",
-            "current_test": "Starting comprehensive analysis...",
             "phase": "testing",
-        }
+            "current_test": "",
+            "errors_encountered": 0,
+            "success_count": 0,
+            "detailed_log": [],
+        })
+        self.test_results = []
 
-        try:
-            for i, endpoint in enumerate(endpoints):
-                if not self.is_testing:
-                    break
-                self.testing_progress.update({
-                    "current": i + 1,
-                    "current_test": f"Testing {endpoint['name']}",
-                    "phase": "testing",
-                })
-                res = self.test_single_endpoint(endpoint)
-                self.test_results.append(res)
-                time.sleep(0.1)
+        for i, ep in enumerate(endpoints, start=1):
+            self.testing_progress["current"] = i
+            self.testing_progress["current_test"] = ep["name"]
+            try:
+                result = self.test_single_endpoint(ep)
+                self.test_results.append(result)
+            except Exception as e:
+                logger.exception(f"Endpoint failed: {ep['name']}")
+                self.test_results.append(EndpointResult(
+                    name=ep["name"],
+                    category=ep.get("category", "Unknown"),
+                    url=ep["url"],
+                    status_code=0,
+                    success=False,
+                    data_count=0,
+                    response_time=0.0,
+                    betting_value="none",
+                    data_quality=0,
+                    sample_data={},
+                    analysis={"error": str(e)},
+                    errors=[str(e)],
+                    recommendations=["Check logs and parameters"],
+                    subscription_tier_required=ep.get("tier", "unknown")
+                ))
+                self.testing_progress["errors_encountered"] += 1
 
-            # Build final analysis
-            self.testing_progress.update({
-                "phase": "analyzing",
-                "current_test": "Generating betting bot analysis...",
-            })
-            self.generate_complete_analysis()
-            self.testing_progress["status"] = "completed"
+            # tiny polite delay to avoid hammering the API
+            time.sleep(0.05)
 
-        except Exception as e:
-            self.testing_progress["status"] = f"error: {str(e)[:180]}"
-        finally:
-            self.is_testing = False
+        # Build executive summary
+        total = len(self.test_results)
+        successful = sum(1 for r in self.test_results if r.success)
+        failed = total - successful
+        success_rate = round((successful / total) * 100, 1) if total else 0.0
 
-    def generate_complete_analysis(self):
-        successful = [r for r in self.test_results if r.success]
-        failed = [r for r in self.test_results if not r.success]
-
-        critical_sources = [r for r in successful if r.betting_value == "critical"]
-        high_value_sources = [r for r in successful if r.betting_value == "high"]
-
-        total_quality = sum(r.data_quality for r in successful)
-        max_possible = len(self.test_results) * 100
-        overall_score = (total_quality / max_possible * 100) if max_possible > 0 else 0.0
-
-        if overall_score >= 65 and len(critical_sources) >= 4:
-            readiness = "EXCELLENT - Full betting bot ready"
-            readiness_level = "excellent"
-        elif overall_score >= 45 and len(critical_sources) >= 2:
-            readiness = "GOOD - Effective betting bot possible"
-            readiness_level = "good"
-        elif overall_score >= 25 and len(critical_sources) >= 1:
-            readiness = "MODERATE - Basic betting tool possible"
-            readiness_level = "moderate"
-        else:
-            readiness = "INSUFFICIENT - API upgrades required"
-            readiness_level = "insufficient"
-
-        capabilities = {
-            "odds_access": any(("odds" in r.name.lower()) and r.success for r in self.test_results),
-            "predictions_access": any(("prediction" in r.name.lower()) and r.success for r in self.test_results),
-            "live_data": any(("live" in r.name.lower()) and r.success for r in self.test_results),
-            "fixture_data": any(("fixture" in r.name.lower()) and r.success for r in self.test_results),
-            "bookmaker_data": any(("bookmaker" in r.name.lower()) and r.success for r in self.test_results),
-            "market_data": any(("market" in r.name.lower()) and r.success for r in self.test_results),
-        }
+        # Determine readiness heuristically
+        has_odds = any("odds" in (",".join((r.analysis.get("critical_fields") or []))).lower() for r in self.test_results)
+        has_live = any(r.category.lower() == "live" and r.success for r in self.test_results)
+        readiness = "sufficient" if (has_live and successful > failed) else "insufficient"
 
         self.complete_analysis = {
-            "executive_summary": {
-                "overall_readiness": readiness,
-                "readiness_level": readiness_level,
-                "feasibility_score": round(overall_score, 1),
-                "total_endpoints": len(self.test_results),
-                "successful_endpoints": len(successful),
-                "critical_sources": len(critical_sources),
-                "high_value_sources": len(high_value_sources),
-                "total_data_items": sum(r.data_count for r in successful),
+            "timestamp": datetime.utcnow().isoformat(),
+            "summary": {
+                "total": total,
+                "successful": successful,
+                "failed": failed,
+                "success_rate": success_rate,
             },
-            "capabilities": capabilities,
-            "data_sources": {
-                "critical": [{"name": r.name, "category": r.category, "data_count": r.data_count, "quality": r.data_quality} for r in critical_sources],
-                "high_value": [{"name": r.name, "category": r.category, "data_count": r.data_count} for r in high_value_sources],
-                "failed_critical": [{"name": r.name, "error": r.errors[0] if r.errors else "Unknown"} for r in failed if r.category in ["Odds", "Predictions"]],
-            },
-            "discovered_data": {
-                "fixtures": len(self.discovered_data["fixture_ids"]),
-                "teams": len(self.discovered_data["team_ids"]),
-                "bookmakers": len(self.discovered_data["bookmaker_ids"]),
-                "markets": len(self.discovered_data["market_ids"]),
-                "sample_fixture_ids": self.discovered_data["fixture_ids"][:20],
+            "capabilities": {
+                "odds_access": has_odds,
+                "live_data": has_live,
             },
             "detailed_results": [asdict(r) for r in self.test_results],
         }
 
-    def get_summary_stats(self) -> Dict:
-        if not self.test_results:
-            return {'total': 0, 'successful': 0, 'failed': 0, 'success_rate': 0}
-        successful = sum(1 for r in self.test_results if r.success)
-        total = len(self.test_results)
-        return {
-            'total': total,
-            'successful': successful,
-            'failed': total - successful,
-            'success_rate': round(successful / total * 100, 1) if total > 0 else 0,
-            'avg_response_time': round(sum(r.response_time for r in self.test_results if r.success) / max(successful, 1), 2),
-            'total_data_items': sum(r.data_count for r in self.test_results)
-        }
+        self.testing_progress.update({"status": "done", "phase": "complete", "current_test": ""})
+        return self.complete_analysis
 
+    # ------------------------------
+
+    def to_json_report(self) -> str:
+        if not self.complete_analysis:
+            self.run_complete_analysis()
+        return json.dumps(self.complete_analysis, indent=2)
 
 # ==============================
-# Flask App
+# Flask API (optional)
 # ==============================
 
-app = Flask(__name__)
-if _HAS_CORS:
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
+def create_app() -> Flask:
+    app = Flask(__name__)
+    if _HAS_CORS and CORS:
+        CORS(app)
 
-analyzer: Optional[CompleteBettingAnalyzer] = None
+    api_token = os.getenv("SPORTMONKS_API_TOKEN") or "REPLACE_ME"
+    analyzer = CompleteBettingAnalyzer(api_token=api_token)
 
+    @app.route("/run", methods=["POST", "GET"])
+    def run_analysis():
+        def _run():
+            analyzer.run_complete_analysis()
 
-@app.route("/")
-def home():
-    # Your existing templates/index.html UI
-    return render_template("index.html")
+        # Run in the same thread unless you really want async
+        _run()
+        return jsonify(analyzer.complete_analysis)
 
+    @app.route("/progress", methods=["GET"])
+    def progress():
+        return jsonify(analyzer.testing_progress)
 
-@app.route("/api/start-analysis", methods=["POST"])
-def start_analysis():
-    global analyzer
-    data = request.get_json(silent=True) or {}
-    api_token = (data.get("api_token") or "").strip()
-    if not api_token:
-        return jsonify({"error": "API token required"}), 400
-    if analyzer and analyzer.is_testing:
-        return jsonify({"error": "Analysis already running"}), 400
-    try:
-        analyzer = CompleteBettingAnalyzer(api_token)
-        thread = threading.Thread(target=analyzer.run_complete_analysis, daemon=True)
-        thread.start()
-        return jsonify({"success": True, "message": "Complete analysis started"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    @app.route("/results", methods=["GET"])
+    def results():
+        return jsonify(analyzer.complete_analysis or {"message": "No results yet. POST /run first."})
 
+    return app
 
-@app.route("/api/progress")
-def get_progress():
-    if not analyzer:
-        return jsonify({"progress": {"current": 0, "total": 0, "status": "idle", "current_test": "", "phase": "idle"}})
-    return jsonify({"progress": analyzer.testing_progress})
-
-
-@app.route("/api/results")
-def get_results():
-    if not analyzer:
-        return jsonify({"error": "No analyzer available"}), 400
-    if not analyzer.complete_analysis:
-        return jsonify({"error": "Analysis not complete"}), 400
-    return jsonify({
-        "summary": analyzer.get_summary_stats(),
-        "analysis": analyzer.complete_analysis
-    })
-
-
-@app.route("/api/download-report")
-def download_report():
-    if not analyzer or not analyzer.complete_analysis:
-        return jsonify({"error": "No analysis available"}), 400
-
-    report_data = {
-        "timestamp": datetime.now().isoformat(),
-        "summary": analyzer.get_summary_stats(),
-        "complete_analysis": analyzer.complete_analysis,
-        "raw_results": [asdict(r) for r in analyzer.test_results]
-    }
-
-    report_json = json.dumps(report_data, indent=2, default=str)
-    buffer = io.BytesIO(report_json.encode("utf-8"))
-    buffer.seek(0)
-    return send_file(
-        buffer,
-        mimetype="application/json",
-        as_attachment=True,
-        download_name=f'betting_bot_complete_analysis_{datetime.now().strftime("%Y%m%d_%H%M")}.json'
-    )
-
-
-# ---------- Helper routes for your UI ----------
-
-@app.route("/api/fixtures/today")
-def fixtures_today():
-    if not analyzer:
-        return jsonify({"error": "No analyzer"}), 400
-    day = datetime.utcnow().strftime("%Y-%m-%d")
-    status, body, _, _ = analyzer._get_json(f"{analyzer.base_url}/fixtures/date/{day}?include=participants,league,venue,state")
-    return jsonify(body if isinstance(body, dict) else {"data": []}), (status or 200)
-
-
-@app.route("/api/inplay/context")
-def inplay_context():
-    if not analyzer:
-        return jsonify({"error": "No analyzer"}), 400
-    return jsonify(analyzer.fetch_inplay_context())
-
-
-@app.route("/api/fixture/<int:fixture_id>/odds")
-def fixture_odds(fixture_id: int):
-    if not analyzer:
-        return jsonify({"error": "No analyzer"}), 400
-    res = analyzer.fetch_odds_for_fixture(fixture_id)
-    rows = res["body"].get("data") or []
-    edges = analyzer.compute_book_edges(rows) if rows else {"selections": [], "best": None}
-    payload = {
-        "fixture_id": fixture_id,
-        "source": res["url"],
-        "row_count": len(rows),
-        "edges": edges
-    }
-    return jsonify(payload), (res["status"] or 200)
-
-
-@app.route("/health")
-def health_check():
-    status = analyzer.testing_progress["status"] if analyzer else "idle"
-    return jsonify({"status": "healthy", "timestamp": datetime.now().isoformat(), "testing_status": status})
-
+# ==============================
+# CLI
+# ==============================
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+    mode = os.getenv("MODE", "server")  # "server" or "cli"
+    if mode == "cli":
+        token = os.getenv("SPORTMONKS_API_TOKEN") or "REPLACE_ME"
+        analyzer = CompleteBettingAnalyzer(api_token=token)
+        report = analyzer.run_complete_analysis()
+        print(json.dumps(report, indent=2))
+    else:
+        port = int(os.getenv("PORT", "8080"))
+        app = create_app()
+        app.run(host="0.0.0.0", port=port)
