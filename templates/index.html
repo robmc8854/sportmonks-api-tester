@@ -1,382 +1,1317 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>SportMonks Betting Bot Analyzer</title>
+  <title>Enhanced SportMonks Betting Bot Analyzer</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root {
-      --bg: #0f172a;
-      --card: #111827;
+      --bg: #0a0e1a;
+      --card: #0f172a;
+      --card-hover: #1e293b;
       --muted: #94a3b8;
-      --text: #e5e7eb;
+      --text: #e2e8f0;
+      --text-bright: #f8fafc;
       --accent: #6366f1;
+      --accent-hover: #4f46e5;
       --good: #10b981;
       --warn: #f59e0b;
       --bad: #ef4444;
-      --chip: #1f2937;
-      --border: #1f2937;
+      --chip: #1e293b;
+      --border: #334155;
+      --border-light: #475569;
+      --gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+      --shadow-xl: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
     }
-    * { box-sizing: border-box }
-    body {
-      margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
-      background: radial-gradient(1200px 600px at 10% -10%, #1f2937 0%, transparent 60%), linear-gradient(180deg, #0b1022 0%, #0b1022 100%);
-      color: var(--text);
-    }
-    .wrap { max-width: 1200px; margin: 0 auto; padding: 24px; }
-    header { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom: 18px; }
-    h1 { font-size: 20px; margin: 0; letter-spacing:.3px }
-    .card {
-      background: linear-gradient(180deg, #0f172a 0%, #0b1022 100%);
-      border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 16px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.25);
-    }
-    label { font-size: 12px; color: var(--muted); display:block; margin-bottom:6px }
-    input[type=text] {
-      width:100%; background:#0a0f1f; border:1px solid var(--border); color:var(--text);
-      border-radius:10px; padding:12px 14px; font-size:14px; outline: none;
-    }
-    .row { display:grid; grid-template-columns: 1fr 1fr; gap:16px }
-    .row-3 { display:grid; grid-template-columns: 1fr 1fr 1fr; gap:16px }
-    .btn {
-      appearance:none; border:none; border-radius:10px; padding:10px 14px; color:white; cursor:pointer; font-weight:600;
-      background: linear-gradient(135deg, var(--accent), #8b5cf6); transition: transform .1s ease;
-    }
-    .btn:disabled { opacity:.6; cursor:not-allowed }
-    .btn:hover { transform: translateY(-1px) }
-    .btn-ghost { background:#0a0f1f; border:1px solid var(--border); color:var(--text) }
-    .progress {
-      width:100%; height:10px; background:#0a0f1f; border:1px solid var(--border); border-radius:999px; overflow:hidden;
-    }
-    .bar { height:100%; width:0%; background: linear-gradient(90deg, var(--accent), #22d3ee) }
-    .status { font-size: 13px; color: var(--muted); margin-top:8px }
-    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:12px }
-    .chip { display:inline-flex; align-items:center; gap:8px; padding:6px 10px; background:var(--chip); border:1px solid var(--border); border-radius:999px; font-size:12px; color:var(--muted) }
-    .kpi { display:flex; align-items:center; justify-content:space-between; padding:12px; background:#0a0f1f; border:1px solid var(--border); border-radius:12px }
-    .kpi b { font-size:18px }
-    .pill { display:inline-block; padding:4px 8px; border-radius:999px; border:1px solid var(--border); background:#0a0f1f; font-size:12px; color:var(--muted) }
-    .tag { font-size:12px; padding:2px 6px; border-radius:6px; background:#0a0f1f; border:1px solid var(--border); color:var(--muted) }
-    .good { color: var(--good) }
-    .warn { color: var(--warn) }
-    .bad { color: var(--bad) }
-    .muted { color: var(--muted) }
-    .list { display:flex; flex-direction:column; gap:10px; }
-    .fx {
-      display:grid; grid-template-columns: 1fr auto; gap:8px; padding:12px; border:1px solid var(--border); border-radius:12px; background:#0a0f1f;
-    }
-    .fx h4 { margin:0 0 4px 0; font-size:15px }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size:12px }
-    @media (max-width: 800px) {
-      .row, .row-3 { grid-template-columns: 1fr }
-    }
+
+```
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+.bg-pattern {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 20% 50%, rgba(99, 102, 241, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(168, 85, 247, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 40% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px;
+  position: relative;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 32px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.header-info h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 4px;
+  background: var(--gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.header-info .subtitle {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.card:hover {
+  background: var(--card-hover);
+  border-color: var(--border-light);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-xl);
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--gradient);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.card:hover::before {
+  opacity: 1;
+}
+
+.card h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-bright);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-icon {
+  width: 20px;
+  height: 20px;
+  opacity: 0.8;
+}
+
+label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  display: block;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+input[type=text] {
+  width: 100%;
+  background: #0a0e1a;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s ease;
+  font-family: ui-monospace, 'Cascadia Code', 'Courier New', monospace;
+}
+
+input[type=text]:focus {
+  border-color: var(--accent);
+  background: #0f1419;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: end;
+}
+
+.row-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.row-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.btn {
+  appearance: none;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 20px;
+  color: white;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  background: var(--gradient);
+  transition: all 0.2s ease;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  min-height: 44px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.btn:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 25px rgba(99, 102, 241, 0.3);
+}
+
+.btn:not(:disabled):active {
+  transform: translateY(0);
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.btn-ghost:not(:disabled):hover {
+  background: var(--card-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 5px 15px rgba(99, 102, 241, 0.2);
+}
+
+.btn-small {
+  padding: 8px 14px;
+  font-size: 12px;
+  min-height: 36px;
+}
+
+.progress-container {
+  margin-top: 16px;
+}
+
+.progress {
+  width: 100%;
+  height: 8px;
+  background: #0a0e1a;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--gradient);
+  transition: width 0.3s ease;
+  position: relative;
+}
+
+.progress-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.status {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status.good { color: var(--good); }
+.status.warn { color: var(--warn); }
+.status.bad { color: var(--bad); }
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: pulse 2s infinite;
+}
+
+.status.good .status-dot { background: var(--good); }
+.status.warn .status-dot { background: var(--warn); }
+.status.bad .status-dot { background: var(--bad); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.kpi {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background: #0a0e1a;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.kpi:hover {
+  border-color: var(--accent);
+  background: #0f1419;
+}
+
+.kpi-label {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.kpi-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-bright);
+}
+
+.readiness-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: var(--chip);
+  color: var(--text);
+  transition: all 0.2s ease;
+}
+
+.badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.badge.excellent { border-color: var(--good); color: var(--good); }
+.badge.good { border-color: #22d3ee; color: #22d3ee; }
+.badge.moderate { border-color: var(--warn); color: var(--warn); }
+.badge.insufficient { border-color: var(--bad); color: var(--bad); }
+
+.fixture-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.fixture-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.fixture-list::-webkit-scrollbar-track {
+  background: #0a0e1a;
+  border-radius: 3px;
+}
+
+.fixture-list::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.fixture {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #0a0e1a;
+  transition: all 0.2s ease;
+}
+
+.fixture:hover {
+  background: #0f1419;
+  border-color: var(--accent);
+  transform: translateX(4px);
+}
+
+.fixture-info h4 {
+  margin: 0 0 6px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-bright);
+}
+
+.fixture-meta {
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.fixture-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tag {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--chip);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  text-transform: uppercase;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+.tag.has-odds { border-color: var(--good); color: var(--good); }
+.tag.no-odds { border-color: var(--warn); color: var(--warn); }
+
+.fixture-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-direction: column;
+}
+
+.betting-analysis {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(99, 102, 241, 0.05);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 8px;
+  font-family: ui-monospace, 'Cascadia Code', monospace;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.betting-analysis .best-bet {
+  color: var(--good);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.betting-analysis .selections {
+  color: var(--muted);
+  opacity: 0.8;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--muted);
+}
+
+.empty-state .icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.logs-container {
+  max-height: 300px;
+  overflow-y: auto;
+  background: #0a0e1a;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: ui-monospace, 'Cascadia Code', monospace;
+  font-size: 12px;
+}
+
+.log-entry {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+  color: var(--muted);
+}
+
+.log-entry:last-child {
+  border-bottom: none;
+}
+
+.debug-panel {
+  background: #0a0e1a;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.debug-controls {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+
+.debug-result {
+  background: rgba(99, 102, 241, 0.05);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 8px;
+  padding: 16px;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.capabilities-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.capability {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: #0a0e1a;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.capability-status {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bad);
+}
+
+.capability-status.available {
+  background: var(--good);
+}
+
+.capability-label {
+  font-size: 13px;
+  color: var(--text);
+}
+
+@media (max-width: 768px) {
+  .row, .row-3, .row-4 {
+    grid-template-columns: 1fr;
+  }
+  
+  .header-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .header-actions .btn {
+    width: 100%;
+  }
+  
+  .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .fixture {
+    grid-template-columns: 1fr;
+    text-align: left;
+  }
+  
+  .fixture-actions {
+    flex-direction: row;
+    justify-content: flex-start;
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+```
+
   </style>
 </head>
 <body>
-  <div class="wrap">
+  <div class="bg-pattern"></div>
+
+  <div class="container">
     <header>
-      <h1>🤖 SportMonks Betting Bot Analyzer</h1>
-      <button class="btn" id="downloadBtn" disabled>Download Report</button>
+      <div class="header-info">
+        <h1>🤖 Enhanced SportMonks Betting Bot Analyzer</h1>
+        <div class="subtitle">Advanced v3 API Testing & AI Prediction System</div>
+      </div>
+      <div class="header-actions">
+        <button class="btn" id="downloadBtn" disabled>
+          📊 Download Report
+        </button>
+      </div>
     </header>
 
-    <!-- Controls -->
-    <div class="card">
-      <div class="row">
-        <div>
-          <label for="apiToken">SportMonks API Token</label>
-          <input id="apiToken" type="text" placeholder="Paste your v3 API token…" autocomplete="off" spellcheck="false">
-        </div>
-        <div style="display:flex; gap:10px; align-items:flex-end">
-          <button class="btn" id="startBtn">Start Complete Analysis</button>
-          <button class="btn btn-ghost" id="refreshTodayBtn">Refresh Today</button>
-          <button class="btn btn-ghost" id="refreshInplayBtn">Refresh In‑play</button>
-        </div>
-      </div>
-      <div style="margin-top:12px">
-        <div class="progress"><div class="bar" id="bar"></div></div>
-        <div class="status" id="status">Idle</div>
-      </div>
-      <div style="margin-top:10px" id="chips">
-        <span class="chip">Use buttons above to load Today’s fixtures & In‑play.</span>
-      </div>
+```
+<!-- Enhanced Control Panel -->
+<div class="card">
+  <h3>
+    <span class="section-icon">⚙️</span>
+    Analysis Control Panel
+  </h3>
+  <div class="row">
+    <div>
+      <label for="apiToken">SportMonks v3 API Token</label>
+      <input id="apiToken" type="text" placeholder="Enter your SportMonks v3 API token..." autocomplete="off" spellcheck="false">
     </div>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+      <button class="btn" id="startBtn">
+        🚀 Start Complete Analysis
+      </button>
+      <button class="btn btn-ghost btn-small" id="refreshTodayBtn">
+        📅 Today's Fixtures
+      </button>
+      <button class="btn btn-ghost btn-small" id="refreshInplayBtn">
+        🔴 Live Fixtures
+      </button>
+    </div>
+  </div>
+  
+  <div class="progress-container">
+    <div class="progress">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <div class="status" id="statusText">
+      <div class="status-dot"></div>
+      <span>Idle - Enter your API token and click 'Start Complete Analysis'</span>
+    </div>
+  </div>
+  
+  <!-- Enhanced Status Indicators -->
+  <div class="readiness-badges" id="statusBadges">
+    <div class="badge">Waiting for analysis...</div>
+  </div>
+</div>
 
-    <!-- Summary -->
-    <div class="card">
-      <h3 style="margin:0 0 12px 0">Summary</h3>
-      <div class="row-3" id="summaryGrid">
-        <div class="kpi"><span class="muted">Endpoints</span> <b id="k_total">0</b></div>
-        <div class="kpi"><span class="muted">Success</span> <b id="k_success">0</b></div>
-        <div class="kpi"><span class="muted">Success Rate</span> <b id="k_rate">0%</b></div>
-        <div class="kpi"><span class="muted">Data Items</span> <b id="k_items">0</b></div>
-        <div class="kpi"><span class="muted">Avg Response</span> <b id="k_rt">0s</b></div>
-        <div class="kpi"><span class="muted">Critical Sources</span> <b id="k_crit">0</b></div>
+<!-- Enhanced Summary Dashboard -->
+<div class="card">
+  <h3>
+    <span class="section-icon">📊</span>
+    Analysis Dashboard
+  </h3>
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div>
+        <div class="kpi-label">Total Endpoints</div>
+        <div class="kpi-value" id="kpiTotal">0</div>
       </div>
-      <div style="margin-top:10px" id="readiness"></div>
     </div>
+    <div class="kpi">
+      <div>
+        <div class="kpi-label">Successful</div>
+        <div class="kpi-value good" id="kpiSuccess">0</div>
+      </div>
+    </div>
+    <div class="kpi">
+      <div>
+        <div class="kpi-label">Success Rate</div>
+        <div class="kpi-value" id="kpiRate">0%</div>
+      </div>
+    </div>
+    <div class="kpi">
+      <div>
+        <div class="kpi-label">Data Items</div>
+        <div class="kpi-value" id="kpiItems">0</div>
+      </div>
+    </div>
+    <div class="kpi">
+      <div>
+        <div class="kpi-label">Avg Response</div>
+        <div class="kpi-value" id="kpiResponseTime">0s</div>
+      </div>
+    </div>
+    <div class="kpi">
+      <div>
+        <div class="kpi-label">Critical Sources</div>
+        <div class="kpi-value" id="kpiCritical">0</div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Capabilities Matrix -->
+  <div class="capabilities-grid" id="capabilitiesGrid">
+    <!-- Will be populated dynamically -->
+  </div>
+</div>
 
-    <!-- Today fixtures -->
-    <div class="card">
-      <h3 style="margin:0 0 12px 0">Today’s Fixtures</h3>
-      <div class="list" id="todayList"></div>
+<!-- Today's Fixtures with Enhanced Betting Analysis -->
+<div class="card">
+  <h3>
+    <span class="section-icon">⚽</span>
+    Today's Fixtures & Betting Analysis
+  </h3>
+  <div class="fixture-list" id="todayFixturesList">
+    <div class="empty-state">
+      <div class="icon">📅</div>
+      <div>Click "Today's Fixtures" to load current matches</div>
     </div>
+  </div>
+</div>
 
-    <!-- In-play -->
-    <div class="card">
-      <h3 style="margin:0 0 12px 0">In‑play (Live)</h3>
-      <div class="list" id="inplayList"></div>
+<!-- Live In-Play Section -->
+<div class="card">
+  <h3>
+    <span class="section-icon">🔴</span>
+    Live In-Play Betting
+  </h3>
+  <div class="fixture-list" id="liveFixturesList">
+    <div class="empty-state">
+      <div class="icon">🔴</div>
+      <div>Click "Live Fixtures" to load in-play matches</div>
     </div>
+  </div>
+</div>
 
-    <!-- Results JSON preview -->
-    <div class="card">
-      <h3 style="margin:0 0 12px 0">Analysis Breakdown</h3>
-      <pre class="mono" id="resultsPreview" style="white-space:pre-wrap; max-height:320px; overflow:auto; margin:0"></pre>
+<!-- Advanced Debug Panel -->
+<div class="card">
+  <h3>
+    <span class="section-icon">🔧</span>
+    Advanced Debugging Tools
+  </h3>
+  <div class="debug-panel">
+    <div class="debug-controls">
+      <div style="flex: 1;">
+        <label for="debugEndpoint">Test Specific Endpoint</label>
+        <input type="text" id="debugEndpoint" placeholder="e.g., fixtures/date/2025-08-08" value="fixtures/date/2025-08-08">
+      </div>
+      <div style="flex: 1;">
+        <label for="debugInclude">Include Parameters</label>
+        <input type="text" id="debugInclude" placeholder="e.g., participants,league,scores" value="participants,league,scores">
+      </div>
+      <button class="btn btn-small" id="testEndpointBtn">🧪 Test Endpoint</button>
     </div>
+    <div class="debug-result" id="debugResult" style="display: none;"></div>
+  </div>
+</div>
+
+<!-- Analysis Results & Logs -->
+<div class="card">
+  <h3>
+    <span class="section-icon">📋</span>
+    Analysis Results & System Logs
+  </h3>
+  <div class="logs-container" id="analysisLogs">
+    <div class="log-entry">System initialized - ready for analysis</div>
+  </div>
+</div>
+```
+
   </div>
 
   <script>
-    const qs = s => document.querySelector(s);
-    const qsa = s => Array.from(document.querySelectorAll(s));
+    // Enhanced JavaScript with better error handling and UX
+    const $ = id => document.getElementById(id);
+    const $$ = sel => document.querySelectorAll(sel);
+    
+    // API client with enhanced error handling
     const api = {
-      start:  () => fetch('/api/start-analysis', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({api_token: qs('#apiToken').value.trim()})}),
-      prog:   () => fetch('/api/progress'),
-      results:() => fetch('/api/results'),
-      today:  () => fetch('/api/fixtures/today'),
-      inplay: () => fetch('/api/inplay/context'),
-      odds:   (fid) => fetch(`/api/fixture/${fid}/odds`)
+      startAnalysis: () => fetch('/api/start-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_token: $('apiToken').value.trim() })
+      }),
+      getProgress: () => fetch('/api/progress'),
+      getResults: () => fetch('/api/results'),
+      getTodayFixtures: () => fetch('/api/fixtures/today'),
+      getLiveFixtures: () => fetch('/api/inplay/context'),
+      getFixtureOdds: (id) => fetch(`/api/fixture/${id}/odds`),
+      testEndpoint: (path, include) => fetch(`/api/debug/endpoint-test?path=${encodeURIComponent(path)}&include=${encodeURIComponent(include)}`)
     };
 
+    // State management
     let pollTimer = null;
+    let currentAnalysis = null;
 
-    function setBar(pct) {
-      qs('#bar').style.width = (pct || 0) + '%';
+    // Enhanced UI helpers
+    function setProgress(percent) {
+      $('progressBar').style.width = `${Math.max(0, Math.min(100, percent))}%`;
     }
 
-    function setStatus(text, tone='') {
-      const el = qs('#status');
-      el.textContent = text;
-      el.className = 'status ' + tone;
-    }
-
-    function setSummary(summary, analysis) {
-      qs('#k_total').textContent   = summary.total ?? 0;
-      qs('#k_success').textContent = summary.successful ?? 0;
-      qs('#k_rate').textContent    = (summary.success_rate ?? 0) + '%';
-      qs('#k_items').textContent   = summary.total_data_items ?? 0;
-      qs('#k_rt').textContent      = (summary.avg_response_time ?? 0) + 's';
-      const crit = (analysis?.data_sources?.critical || []).length;
-      qs('#k_crit').textContent = crit;
-
-      if (analysis?.executive_summary) {
-        const es = analysis.executive_summary;
-        qs('#readiness').innerHTML = `
-          <span class="pill">${es.overall_readiness}</span>
-          <span class="pill">Feasibility: <b>${es.feasibility_score}</b></span>
-          <span class="pill">Success: <b>${es.successful_endpoints}/${es.total_endpoints}</b></span>
-          <span class="pill">High Value: <b>${analysis.data_sources?.high_value?.length || 0}</b></span>
-        `;
+    function setStatus(message, type = '') {
+      const statusEl = $('statusText');
+      const dotEl = statusEl.querySelector('.status-dot');
+      const textEl = statusEl.querySelector('span');
+      
+      textEl.textContent = message;
+      statusEl.className = `status ${type}`;
+      
+      // Add status animation
+      if (type === 'good') {
+        dotEl.style.background = 'var(--good)';
+      } else if (type === 'warn') {
+        dotEl.style.background = 'var(--warn)';
+      } else if (type === 'bad') {
+        dotEl.style.background = 'var(--bad)';
+      } else {
+        dotEl.style.background = 'var(--muted)';
       }
     }
 
-    function fxTitle(fx) {
-      const name = fx.name || `${fx?.participants?.localteam?.name || 'Home'} vs ${fx?.participants?.visitorteam?.name || 'Away'}`;
-      const t = fx.starting_at || fx.time?.starting_at || fx.starting_at_timestamp || '';
-      return `${name} ${t ? `• ${t}` : ''}`;
+    function addLogEntry(message, type = 'info') {
+      const logsContainer = $('analysisLogs');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.textContent = `${new Date().toLocaleTimeString()} - ${message}`;
+      
+      logsContainer.appendChild(entry);
+      logsContainer.scrollTop = logsContainer.scrollHeight;
+      
+      // Limit log entries to prevent memory issues
+      const entries = logsContainer.querySelectorAll('.log-entry');
+      if (entries.length > 100) {
+        entries[0].remove();
+      }
     }
 
-    function renderToday(list = []) {
-      const el = qs('#todayList');
-      if (!list.length) {
-        el.innerHTML = `<div class="muted">No fixtures returned.</div>`;
+    function updateKPIs(summary = {}) {
+      $('kpiTotal').textContent = summary.total || 0;
+      $('kpiSuccess').textContent = summary.successful || 0;
+      $('kpiRate').textContent = `${summary.success_rate || 0}%`;
+      $('kpiItems').textContent = summary.total_data_items || 0;
+      $('kpiResponseTime').textContent = `${summary.avg_response_time || 0}s`;
+      
+      // Update rate color based on success
+      const rateEl = $('kpiRate');
+      const rate = summary.success_rate || 0;
+      if (rate >= 80) {
+        rateEl.style.color = 'var(--good)';
+      } else if (rate >= 60) {
+        rateEl.style.color = 'var(--warn)';
+      } else {
+        rateEl.style.color = 'var(--bad)';
+      }
+    }
+
+    function updateCapabilities(capabilities = {}) {
+      const grid = $('capabilitiesGrid');
+      const capabilityList = [
+        { key: 'live_odds_available', label: 'Live Odds' },
+        { key: 'pre_match_odds_available', label: 'Pre-match Odds' },
+        { key: 'ai_predictions_available', label: 'AI Predictions' },
+        { key: 'live_scores_available', label: 'Live Scores' },
+        { key: 'fixture_data_available', label: 'Fixture Data' },
+        { key: 'historical_data_available', label: 'Historical Data' }
+      ];
+
+      grid.innerHTML = '';
+      capabilityList.forEach(cap => {
+        const available = capabilities[cap.key] || false;
+        const div = document.createElement('div');
+        div.className = 'capability';
+        div.innerHTML = `
+          <div class="capability-status ${available ? 'available' : ''}"></div>
+          <div class="capability-label">${cap.label}</div>
+        `;
+        grid.appendChild(div);
+      });
+    }
+
+    function updateStatusBadges(analysis = {}) {
+      const container = $('statusBadges');
+      const executive = analysis.executive_summary || {};
+      const level = executive.readiness_level || 'unknown';
+      const score = executive.readiness_score || 0;
+
+      container.innerHTML = `
+        <div class="badge ${level}">
+          ${executive.overall_readiness || 'Analyzing...'}
+        </div>
+        <div class="badge">
+          Score: ${score}%
+        </div>
+        <div class="badge">
+          Critical Sources: ${executive.critical_data_sources || 0}
+        </div>
+        <div class="badge">
+          Success: ${executive.successful_endpoints || 0}/${executive.total_endpoints_tested || 0}
+        </div>
+      `;
+    }
+
+    function renderTodayFixtures(fixtures = []) {
+      const container = $('todayFixturesList');
+      
+      if (!fixtures.length) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="icon">📅</div>
+            <div>No fixtures found for today</div>
+          </div>
+        `;
         return;
       }
-      el.innerHTML = '';
-      list.forEach(fx => {
-        const id = fx.id;
-        const title = fxTitle(fx);
-        const league = fx.league?.name || `League ${fx.league_id || ''}`;
-        const hasOdds = fx.has_odds ? `<span class="tag">has_odds</span>` : `<span class="tag">no_odds</span>`;
-        const b = document.createElement('div');
-        b.className = 'fx';
-        b.innerHTML = `
-          <div>
-            <h4>${title}</h4>
-            <div class="muted">${league}</div>
-            <div style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap">
-              ${hasOdds}
-              <span class="tag">fixture_id: ${id}</span>
+
+      container.innerHTML = '';
+      fixtures.forEach(fixture => {
+        const id = fixture.id;
+        const participants = fixture.participants || [];
+        const home = participants.find(p => p.meta?.location === 'home')?.name || 'Home Team';
+        const away = participants.find(p => p.meta?.location === 'away')?.name || 'Away Team';
+        const league = fixture.league?.name || 'Unknown League';
+        const startTime = fixture.starting_at || 'TBD';
+        const hasOdds = fixture.has_odds || false;
+
+        const fixtureEl = document.createElement('div');
+        fixtureEl.className = 'fixture fade-in';
+        fixtureEl.innerHTML = `
+          <div class="fixture-info">
+            <h4>${home} vs ${away}</h4>
+            <div class="fixture-meta">${league} • ${new Date(startTime).toLocaleString()}</div>
+            <div class="fixture-tags">
+              <span class="tag ${hasOdds ? 'has-odds' : 'no-odds'}">${hasOdds ? 'Has Odds' : 'No Odds'}</span>
+              <span class="tag">ID: ${id}</span>
             </div>
-            <div class="mono" id="edge_${id}" style="margin-top:8px; color:#cbd5e1"></div>
+            <div class="betting-analysis" id="analysis_${id}" style="display: none;"></div>
           </div>
-          <div style="display:flex; gap:8px; align-items:center">
-            <button class="btn" data-fid="${id}">Analyze Odds</button>
+          <div class="fixture-actions">
+            <button class="btn btn-small" onclick="analyzeFixtureOdds(${id})" id="btn_${id}">
+              🎯 Analyze Odds
+            </button>
           </div>
         `;
-        el.appendChild(b);
-      });
-      // Hook buttons
-      qsa('#todayList button.btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          btn.disabled = true;
-          btn.textContent = 'Analyzing…';
-          const fid = btn.getAttribute('data-fid');
-          try {
-            const r = await api.odds(fid);
-            const data = await r.json();
-            const best = data?.edges?.best;
-            const sel = data?.edges?.selections || [];
-            let html = '';
-            if (best) {
-              html += `<div><b>Best:</b> ${best.market} — ${best.pick} @ ${best.odds} | edge ${Math.round(best.edge*1000)/10}% | Kelly ${(Math.round(best.kelly_fraction*1000)/10)}%</div>`;
-            }
-            if (sel.length) {
-              html += `<div class="mono" style="margin-top:4px">${sel.map(s => `${s.market}:${s.pick}@${s.odds}[fair=${s.fair_prob},edge=${s.edge}]`).join('  |  ')}</div>`;
-            }
-            qs(`#edge_${fid}`).innerHTML = html || 'No priced selections found for markets 1 & 80.';
-          } catch (e) {
-            qs(`#edge_${fid}`).textContent = 'Error fetching odds.';
-          } finally {
-            btn.disabled = false;
-            btn.textContent = 'Analyze Odds';
-          }
-        });
+        container.appendChild(fixtureEl);
       });
     }
 
-    function renderInplay(stitched = []) {
-      const el = qs('#inplayList');
-      if (!stitched.length) {
-        el.innerHTML = `<div class="muted">No in‑play fixtures right now.</div>`;
+    function renderLiveFixtures(fixtures = []) {
+      const container = $('liveFixturesList');
+      
+      if (!fixtures.length) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="icon">🔴</div>
+            <div>No live fixtures at the moment</div>
+          </div>
+        `;
         return;
       }
-      el.innerHTML = '';
-      stitched.forEach(row => {
-        const fx = row.fixture || {};
-        const title = fxTitle(fx);
-        const oddsCount = (row.odds || []).length;
-        const s = document.createElement('div');
-        s.className = 'fx';
-        s.innerHTML = `
-          <div>
-            <h4>${title}</h4>
-            <div class="muted">live • odds rows: <b>${oddsCount}</b></div>
+
+      container.innerHTML = '';
+      fixtures.forEach(item => {
+        const fixture = item.fixture || {};
+        const oddsCount = item.odds_count || 0;
+        const participants = fixture.participants || [];
+        const home = participants.find(p => p.meta?.location === 'home')?.name || 'Home Team';
+        const away = participants.find(p => p.meta?.location === 'away')?.name || 'Away Team';
+        const scores = fixture.scores || [];
+        const homeScore = scores.find(s => s.description === 'CURRENT')?.score?.goals_home || '0';
+        const awayScore = scores.find(s => s.description === 'CURRENT')?.score?.goals_away || '0';
+
+        const fixtureEl = document.createElement('div');
+        fixtureEl.className = 'fixture fade-in';
+        fixtureEl.innerHTML = `
+          <div class="fixture-info">
+            <h4>🔴 ${home} ${homeScore}-${awayScore} ${away}</h4>
+            <div class="fixture-meta">LIVE • Odds available: ${oddsCount}</div>
+            <div class="fixture-tags">
+              <span class="tag has-odds">LIVE</span>
+              <span class="tag">ID: ${fixture.id}</span>
+              <span class="tag">${oddsCount} odds</span>
+            </div>
+            ${item.betting_analysis && item.betting_analysis.best ? `
+              <div class="betting-analysis">
+                <div class="best-bet">🎯 Best: ${item.betting_analysis.best.outcome} @ ${item.betting_analysis.best.odds}</div>
+                <div class="selections">Edge: ${(item.betting_analysis.best.edge * 100).toFixed(1)}% | Kelly: ${(item.betting_analysis.best.kelly_fraction * 100).toFixed(1)}%</div>
+              </div>
+            ` : ''}
           </div>
-          <div><span class="pill">fixture_id: ${fx.id}</span></div>
+          <div class="fixture-actions">
+            <button class="btn btn-small" onclick="analyzeFixtureOdds(${fixture.id})" id="live_btn_${fixture.id}">
+              📊 Update Analysis
+            </button>
+          </div>
         `;
-        el.appendChild(s);
+        container.appendChild(fixtureEl);
       });
     }
 
-    function pretty(obj) {
-      try { return JSON.stringify(obj, null, 2) } catch { return String(obj) }
+    // Enhanced fixture odds analysis
+    async function analyzeFixtureOdds(fixtureId) {
+      const btn = $(`btn_${fixtureId}`) || $(`live_btn_${fixtureId}`);
+      const analysisContainer = $(`analysis_${fixtureId}`);
+      
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '🔄 Analyzing...';
+      }
+
+      try {
+        const response = await api.getFixtureOdds(fixtureId);
+        const data = await response.json();
+
+        if (analysisContainer) {
+          if (data.betting_analysis && data.betting_analysis.best) {
+            const best = data.betting_analysis.best;
+            const selections = data.betting_analysis.selections || [];
+            
+            analysisContainer.style.display = 'block';
+            analysisContainer.innerHTML = `
+              <div class="best-bet">
+                🎯 Best Bet: ${best.outcome} @ ${best.odds} 
+                (Edge: ${(best.edge * 100).toFixed(1)}%, Kelly: ${(best.kelly_fraction * 100).toFixed(1)}%)
+              </div>
+              <div class="selections">
+                ${selections.map(s => 
+                  `${s.outcome}: ${s.odds} [Fair: ${(s.fair_prob * 100).toFixed(1)}%, Edge: ${(s.edge * 100).toFixed(1)}%]`
+                ).join(' | ')}
+              </div>
+            `;
+          } else {
+            analysisContainer.style.display = 'block';
+            analysisContainer.innerHTML = `
+              <div style="color: var(--warn);">
+                ⚠️ No betting opportunities found (${data.odds_count || 0} odds analyzed)
+              </div>
+            `;
+          }
+        }
+
+        addLogEntry(`Analyzed fixture ${fixtureId}: ${data.odds_available ? 'odds found' : 'no odds'}`, 'info');
+        
+      } catch (error) {
+        if (analysisContainer) {
+          analysisContainer.style.display = 'block';
+          analysisContainer.innerHTML = `<div style="color: var(--bad);">❌ Error analyzing odds</div>`;
+        }
+        addLogEntry(`Error analyzing fixture ${fixtureId}: ${error.message}`, 'error');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = '🎯 Analyze Odds';
+        }
+      }
     }
 
-    // Poll progress until done
-    async function pollProgress() {
-      clearInterval(pollTimer);
+    // Progress polling with enhanced error handling
+    async function startProgressPolling() {
+      if (pollTimer) clearInterval(pollTimer);
+      
       pollTimer = setInterval(async () => {
         try {
-          const r = await api.prog();
-          const { progress } = await r.json();
-          const pct = progress.total ? Math.round((progress.current / progress.total) * 100) : 0;
-          setBar(pct);
-          setStatus(`${progress.current_test || 'Working…'} (${progress.current}/${progress.total}) — ${progress.status}`);
+          const response = await api.getProgress();
+          const { progress } = await response.json();
+          
+          const percent = progress.total ? (progress.current / progress.total) * 100 : 0;
+          setProgress(percent);
+          
+          const statusMsg = `${progress.current_test || 'Working...'} (${progress.current}/${progress.total})`;
+          setStatus(statusMsg, progress.status === 'error' ? 'bad' : '');
+          
+          // Update KPIs during progress
+          $('kpiCritical').textContent = progress.success_count || 0;
+          
           if (progress.status === 'completed') {
             clearInterval(pollTimer);
-            await loadResults();
-            qs('#downloadBtn').disabled = false;
-            setStatus('Complete 🎉');
-          } else if ((progress.status || '').startsWith('error')) {
+            await loadAnalysisResults();
+            setStatus('Analysis completed successfully! 🎉', 'good');
+            $('downloadBtn').disabled = false;
+            addLogEntry('Analysis completed successfully', 'success');
+          } else if (progress.status && progress.status.includes('error')) {
             clearInterval(pollTimer);
-            setStatus(progress.status, 'bad');
+            setStatus(`Error: ${progress.status}`, 'bad');
+            addLogEntry(`Analysis failed: ${progress.status}`, 'error');
           }
-        } catch (e) {
-          // swallow
+          
+          // Add log entries from detailed log
+          if (progress.detailed_log && progress.detailed_log.length > 0) {
+            const lastEntry = progress.detailed_log[progress.detailed_log.length - 1];
+            if (lastEntry && !lastEntry.includes('Testing:')) { // Avoid spamming
+              addLogEntry(lastEntry, 'info');
+            }
+          }
+          
+        } catch (error) {
+          console.warn('Progress polling error:', error);
+          // Don't spam errors, just log once
+          if (!window.progressErrorLogged) {
+            addLogEntry('Progress polling interrupted', 'warn');
+            window.progressErrorLogged = true;
+          }
         }
       }, 1000);
     }
 
-    async function loadResults() {
+    async function loadAnalysisResults() {
       try {
-        const r = await api.results();
-        const data = await r.json();
-        if (!r.ok) throw new Error(data.error || 'Failed to load results');
-        setSummary(data.summary || {}, data.analysis || {});
-        qs('#resultsPreview').textContent = pretty(data);
-      } catch (e) {
-        qs('#resultsPreview').textContent = 'No results available yet.';
+        const response = await api.getResults();
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to load results');
+        }
+        
+        currentAnalysis = data.analysis;
+        updateKPIs(data.summary);
+        updateCapabilities(data.analysis.capabilities);
+        updateStatusBadges(data.analysis);
+        $('kpiCritical').textContent = data.analysis.executive_summary?.critical_data_sources || 0;
+        
+        addLogEntry('Analysis results loaded successfully', 'success');
+        
+      } catch (error) {
+        addLogEntry(`Failed to load results: ${error.message}`, 'error');
+        setStatus('Failed to load analysis results', 'bad');
       }
     }
 
-    async function loadToday() {
+    async function loadTodayFixtures() {
+      const btn = $('refreshTodayBtn');
+      btn.disabled = true;
+      btn.textContent = '⏳ Loading...';
+      
       try {
-        const r = await api.today();
-        const data = await r.json();
-        renderToday(data?.data || []);
-      } catch (e) {
-        renderToday([]);
+        const response = await api.getTodayFixtures();
+        const data = await response.json();
+        
+        renderTodayFixtures(data.data || []);
+        addLogEntry(`Loaded ${(data.data || []).length} fixtures for today`, 'info');
+        
+      } catch (error) {
+        renderTodayFixtures([]);
+        addLogEntry(`Failed to load today's fixtures: ${error.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '📅 Today\'s Fixtures';
       }
     }
 
-    async function loadInplay() {
+    async function loadLiveFixtures() {
+      const btn = $('refreshInplayBtn');
+      btn.disabled = true;
+      btn.textContent = '⏳ Loading...';
+      
       try {
-        const r = await api.inplay();
-        const data = await r.json();
-        renderInplay(data?.data || []);
-      } catch (e) {
-        renderInplay([]);
+        const response = await api.getLiveFixtures();
+        const data = await response.json();
+        
+        renderLiveFixtures(data.data || []);
+        addLogEntry(`Loaded ${(data.data || []).length} live fixtures`, 'info');
+        
+      } catch (error) {
+        renderLiveFixtures([]);
+        addLogEntry(`Failed to load live fixtures: ${error.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🔴 Live Fixtures';
       }
     }
 
-    // Events
-    qs('#startBtn').addEventListener('click', async () => {
-      const token = qs('#apiToken').value.trim();
-      if (!token || token.length < 8) {
-        alert('Enter your SportMonks v3 API token first.');
+    async function startCompleteAnalysis() {
+      const token = $('apiToken').value.trim();
+      if (!token || token.length < 10) {
+        alert('Please enter a valid SportMonks v3 API token');
+        $('apiToken').focus();
         return;
       }
-      qs('#startBtn').disabled = true;
-      setBar(0);
-      setStatus('Starting…');
-      try {
-        const r = await api.start();
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error || 'Failed to start.');
-        setStatus('Running analysis…');
-        pollProgress();
-      } catch (e) {
-        setStatus('Failed to start analysis', 'bad');
-        qs('#startBtn').disabled = false;
-      }
-    });
 
-    qs('#refreshTodayBtn').addEventListener('click', loadToday);
-    qs('#refreshInplayBtn').addEventListener('click', loadInplay);
-
-    qs('#downloadBtn').addEventListener('click', async () => {
-      const btn = qs('#downloadBtn');
-      btn.disabled = true;
+      const startBtn = $('startBtn');
+      startBtn.disabled = true;
+      startBtn.textContent = '🚀 Starting Analysis...';
+      
+      setProgress(0);
+      setStatus('Initializing comprehensive analysis...', '');
+      addLogEntry('Starting comprehensive SportMonks v3 API analysis', 'info');
+      
       try {
-        const r = await fetch('/api/download-report');
-        if (!r.ok) {
-          const j = await r.json().catch(()=>({}));
-          throw new Error(j.error || 'Download failed');
+        const response = await api.startAnalysis();
+        const result = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to start analysis');
         }
-        const blob = await r.blob();
+        
+        setStatus('Analysis started - testing endpoints...', 'warn');
+        addLogEntry('Analysis started successfully', 'success');
+        startProgressPolling();
+        
+      } catch (error) {
+        setStatus(`Failed to start: ${error.message}`, 'bad');
+        addLogEntry(`Failed to start analysis: ${error.message}`, 'error');
+        startBtn.disabled = false;
+        startBtn.textContent = '🚀 Start Complete Analysis';
+      }
+    }
+
+    async function testSingleEndpoint() {
+      const path = $('debugEndpoint').value.trim();
+      const include = $('debugInclude').value.trim();
+      const btn = $('testEndpointBtn');
+      const resultContainer = $('debugResult');
+      
+      if (!path) {
+        alert('Please enter an endpoint path to test');
+        return;
+      }
+      
+      btn.disabled = true;
+      btn.textContent = '🔄 Testing...';
+      resultContainer.style.display = 'block';
+      resultContainer.textContent = 'Testing endpoint...';
+      
+      try {
+        const response = await api.testEndpoint(path, include);
+        const data = await response.json();
+        
+        resultContainer.textContent = JSON.stringify(data, null, 2);
+        addLogEntry(`Endpoint test: ${path} - Status: ${data.status_code}`, data.status_code === 200 ? 'success' : 'warn');
+        
+      } catch (error) {
+        resultContainer.textContent = `Error: ${error.message}`;
+        addLogEntry(`Endpoint test failed: ${error.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🧪 Test Endpoint';
+      }
+    }
+
+    async function downloadReport() {
+      const btn = $('downloadBtn');
+      btn.disabled = true;
+      btn.textContent = '⏳ Preparing...';
+      
+      try {
+        const response = await fetch('/api/download-report');
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          throw new Error(error.error || 'Download failed');
+        }
+        
+        const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `betting_bot_complete_analysis_${new Date().toISOString().slice(0,10)}.json`;
-        document.body.appendChild(a); a.click(); a.remove();
+        a.download = `sportmonks_analysis_${new Date().toISOString().slice(0,10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
         URL.revokeObjectURL(url);
-      } catch (e) {
-        alert(e.message || 'Failed to download');
+        
+        addLogEntry('Analysis report downloaded successfully', 'success');
+        
+      } catch (error) {
+        alert(`Download failed: ${error.message}`);
+        addLogEntry(`Download failed: ${error.message}`, 'error');
       } finally {
         btn.disabled = false;
+        btn.textContent = '📊 Download Report';
+      }
+    }
+
+    // Event listeners
+    $('startBtn').addEventListener('click', startCompleteAnalysis);
+    $('refreshTodayBtn').addEventListener('click', loadTodayFixtures);
+    $('refreshInplayBtn').addEventListener('click', loadLiveFixtures);
+    $('testEndpointBtn').addEventListener('click', testSingleEndpoint);
+    $('downloadBtn').addEventListener('click', downloadReport);
+
+    // Auto-focus token input
+    $('apiToken').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        startCompleteAnalysis();
       }
     });
 
-    // Initial load (fixtures/in-play are manual so you control calls)
-    setStatus('Idle — paste token and click Start Complete Analysis.');
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      addLogEntry('Enhanced SportMonks Analyzer initialized', 'info');
+      addLogEntry('Ready for v3 API testing and betting analysis', 'info');
+      $('apiToken').focus();
+    });
+
+    // Make analyzeFixtureOdds globally available
+    window.analyzeFixtureOdds = analyzeFixtureOdds;
   </script>
+
 </body>
 </html>
