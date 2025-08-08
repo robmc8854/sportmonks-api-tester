@@ -383,7 +383,8 @@
         <form id="analysisForm">
             <div class="form-group">
                 <label for="apiToken">SportMonks API Token</label>
-                <input type="text" id="apiToken" placeholder="Enter your SportMonks API token..." required>
+                <input type="text" id="apiToken" placeholder="Enter your SportMonks API token..." required 
+                       autocomplete="off" spellcheck="false">
             </div>
             
             <button type="submit" class="btn btn-primary" id="startBtn">
@@ -462,8 +463,8 @@
         e.preventDefault();
         
         const apiToken = document.getElementById('apiToken').value.trim();
-        if (!apiToken) {
-            alert('Please enter your SportMonks API token');
+        if (!apiToken || apiToken.length < 10) {
+            alert('Please enter a valid SportMonks API token (at least 10 characters)');
             return;
         }
 
