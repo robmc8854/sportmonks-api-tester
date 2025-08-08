@@ -6,33 +6,20 @@
   <title>Professional Betting Bot Analyzer</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh; padding: 20px; color: #333;
-    }
-    .container {
-      max-width: 1200px; margin: 0 auto; background: white; border-radius: 20px;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.1); overflow: hidden;
-    }
-    .header {
-      background: linear-gradient(135deg, #2c3e50, #34495e); color: white;
-      padding: 40px 20px; text-align: center;
-    }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; color: #333; }
+    .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 20px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1); overflow: hidden; }
+    .header { background: linear-gradient(135deg, #2c3e50, #34495e); color: white; padding: 40px 20px; text-align: center; }
     .header h1 { font-size: 2.5em; margin-bottom: 10px; }
     .header p { opacity: 0.9; font-size: 1.1em; }
     .content { padding: 40px 20px; }
     .form-group { margin-bottom: 30px; }
     label { display: block; margin-bottom: 10px; font-weight: 600; color: #2c3e50; font-size: 1.1em; }
-    input[type="text"] {
-      width: 100%; padding: 18px; border: 2px solid #e0e6ed; border-radius: 12px;
-      font-size: 16px; transition: border-color 0.3s ease;
-    }
+    input[type="text"] { width: 100%; padding: 18px; border: 2px solid #e0e6ed; border-radius: 12px; font-size: 16px; transition: border-color 0.3s ease; }
     input[type="text"]:focus { outline: none; border-color: #667eea; }
-    .btn {
-      width: 100%; padding: 20px; border: none; border-radius: 12px; font-size: 18px; font-weight: 600;
-      cursor: pointer; transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px;
-    }
+    .btn { width: 100%; padding: 20px; border: none; border-radius: 12px; font-size: 18px; font-weight: 600; cursor: pointer;
+      transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px; }
     .btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
     .btn-success { background: linear-gradient(135deg, #2ecc71, #27ae60); color: white; }
     .btn:hover { transform: translateY(-3px); box-shadow: 0 15px 30px rgba(0,0,0,0.2); }
@@ -44,10 +31,7 @@
     .status.completed { background: #e8f5e8; color: #2e7d32; }
     .status.error { background: #ffebee; color: #c62828; }
     .results { margin-top: 40px; }
-    .readiness-card {
-      background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-      border-radius: 20px; padding: 40px; margin: 30px 0; text-align: center; border: 3px solid;
-    }
+    .readiness-card { background: linear-gradient(135deg, #f8f9fa, #e9ecef); border-radius: 20px; padding: 40px; margin: 30px 0; text-align: center; border: 3px solid; }
     .readiness-excellent { border-color: #27ae60; background: linear-gradient(135deg, #d5f4e6, #c8e6c9); }
     .readiness-good { border-color: #3498db; background: linear-gradient(135deg, #e3f2fd, #bbdefb); }
     .readiness-moderate { border-color: #f39c12; background: linear-gradient(135deg, #fff3cd, #ffeaa7); }
@@ -60,12 +44,8 @@
     .stat-label { color: #666; font-size: 1em; font-weight: 500; }
     .section { background: #f8f9fa; border-radius: 15px; padding: 25px; margin: 25px 0; }
     .section h3 { margin-bottom: 20px; color: #2c3e50; font-size: 1.5em; display: flex; align-items: center; gap: 10px; }
-    .recommendation-item {
-      background: white; padding: 15px 20px; border-radius: 10px; margin-bottom: 12px; border-left: 4px solid #667eea; font-size: 1.05em; line-height: 1.4;
-    }
-    .roadmap-phase {
-      background: white; border-radius: 12px; padding: 25px; margin-bottom: 20px; border-left: 5px solid #667eea; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-    }
+    .recommendation-item { background: white; padding: 15px 20px; border-radius: 10px; margin-bottom: 12px; border-left: 4px solid #667eea; font-size: 1.05em; line-height: 1.4; }
+    .roadmap-phase { background: white; border-radius: 12px; padding: 25px; margin-bottom: 20px; border-left: 5px solid #667eea; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
     .phase-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
     .phase-title { font-weight: bold; font-size: 1.3em; color: #2c3e50; }
     .phase-duration { background: #667eea; color: white; padding: 5px 15px; border-radius: 20px; font-size: 0.9em; font-weight: 500; }
@@ -118,14 +98,32 @@
           <pre id="discoveredIds" style="background:white;border-radius:12px;padding:16px;box-shadow:0 5px 15px rgba(0,0,0,0.05);overflow:auto;"></pre>
         </div>
 
-        <!-- Predictions section -->
+        <!-- Predictions -->
         <div class="section">
           <h3>🎯 Bot Predictions</h3>
-          <div style="display:flex; gap:12px; margin-bottom:12px;">
+          <div style="display:flex; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
             <button class="btn btn-primary" id="predictionsBtn">🔮 Load Predictions</button>
+            <label style="display:flex;align-items:center;gap:8px;">
+              Min Edge:
+              <input id="minEdge" type="number" step="0.01" min="0" max="0.5" value="0.03" style="padding:10px;border:1px solid #ddd;border-radius:8px;width:100px;">
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;">
+              Auto-refresh:
+              <input id="autoRefresh" type="checkbox">
+            </label>
           </div>
           <div id="predictionsNotice" class="status hidden">Run the analysis first, then load predictions.</div>
           <div id="predictionsList"></div>
+        </div>
+
+        <!-- Live Pulse -->
+        <div class="section">
+          <h3>⚡ In‑Play Pulse</h3>
+          <div style="display:flex; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+            <button class="btn btn-primary" id="pulseBtn">📡 Start Pulse</button>
+            <button class="btn" id="pulseStopBtn">⏹ Stop</button>
+          </div>
+          <div id="pulseList"></div>
         </div>
 
         <div class="section">
@@ -137,12 +135,22 @@
   </div>
 
   <script>
-    let testInterval;
+    let testInterval, pulseTimer, autoRefreshTimer;
     let isTestRunning = false;
 
     document.getElementById('analysisForm').addEventListener('submit', startAnalysis);
     document.getElementById('downloadBtn').addEventListener('click', downloadReport);
     document.getElementById('predictionsBtn').addEventListener('click', loadPredictions);
+    document.getElementById('pulseBtn').addEventListener('click', startPulse);
+    document.getElementById('pulseStopBtn').addEventListener('click', stopPulse);
+    document.getElementById('autoRefresh').addEventListener('change', (e) => {
+      if (e.target.checked) {
+        if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+        autoRefreshTimer = setInterval(loadPredictions, 60000);
+      } else if (autoRefreshTimer) {
+        clearInterval(autoRefreshTimer); autoRefreshTimer = null;
+      }
+    });
 
     async function startAnalysis(e) {
       e.preventDefault();
@@ -153,9 +161,7 @@
       }
       try {
         const res = await fetch('/api/start-test', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ api_token: apiToken })
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ api_token: apiToken })
         });
         const data = await safeJson(res);
         if (!res.ok) throw new Error(data?.error || 'Failed to start analysis');
@@ -183,7 +189,6 @@
             clearInterval(testInterval);
             isTestRunning = false;
             await loadResults();
-            // auto-load predictions when done
             await loadPredictions();
           } else if (String(data?.progress?.status || '').includes('error')) {
             clearInterval(testInterval);
@@ -204,7 +209,6 @@
       const statusText = document.getElementById('statusText');
       const pct = progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
       progressBar.style.width = pct + '%';
-
       if (progress.status === 'running') {
         statusText.textContent = `${progress.current_test || 'Working...'} (${progress.current}/${progress.total})`;
         statusText.className = 'status testing';
@@ -236,7 +240,6 @@
       const summary = payload?.summary || { total:0, successful:0, failed:0, success_rate:0, avg_response_time:0, total_data_items:0 };
       const results = Array.isArray(payload?.results) ? payload.results : [];
       const ids = payload?.discovered_ids || {};
-      const analysis = payload?.analysis || {};
 
       const sr = Number(summary.success_rate) || 0;
       let level = 'insufficient';
@@ -264,22 +267,18 @@
       `;
 
       const resultList = document.getElementById('resultList');
-      if (!results.length) {
-        resultList.innerHTML = '<p>No results yet.</p>';
-      } else {
-        resultList.innerHTML = results.map(r => {
-          const ok = r.success;
-          const color = ok ? '#27ae60' : '#e74c3c';
-          const msg = ok ? `${r.data_count} items` : (r.errors && r.errors[0]) || `HTTP ${r.status_code}`;
-          const rt = (typeof r.response_time === 'number') ? r.response_time.toFixed(2) : r.response_time;
-          return `
-            <div class="recommendation-item" style="border-left-color:${color}">
-              <strong>${r.endpoint}</strong><br/>
-              Status: <span style="color:${color}">${ok ? 'OK' : 'Failed'}</span> — ${msg} — ${rt}s
-            </div>
-          `;
-        }).join('');
-      }
+      resultList.innerHTML = results.length ? results.map(r => {
+        const ok = r.success;
+        const color = ok ? '#27ae60' : '#e74c3c';
+        const msg = ok ? `${r.data_count} items` : (r.errors && r.errors[0]) || `HTTP ${r.status_code}`;
+        const rt = (typeof r.response_time === 'number') ? r.response_time.toFixed(2) : r.response_time;
+        return `
+          <div class="recommendation-item" style="border-left-color:${color}">
+            <strong>${r.endpoint}</strong><br/>
+            Status: <span style="color:${color}">${ok ? 'OK' : 'Failed'}</span> — ${msg} — ${rt}s
+          </div>
+        `;
+      }).join('') : '<p>No results yet.</p>';
 
       document.getElementById('discoveredIds').textContent = JSON.stringify(ids, null, 2);
     }
@@ -288,6 +287,7 @@
       const btn = document.getElementById('predictionsBtn');
       const list = document.getElementById('predictionsList');
       const notice = document.getElementById('predictionsNotice');
+      const minEdge = parseFloat(document.getElementById('minEdge').value || '0.03');
 
       btn.disabled = true;
       const originalText = btn.textContent;
@@ -297,14 +297,19 @@
       try {
         const res = await fetch('/api/predictions');
         const data = await safeJson(res);
-
         if (!res.ok) throw new Error((data && data.message) || 'Failed to load predictions');
 
         const preds = (data && data.predictions) || [];
         if (!preds.length) {
-          list.innerHTML = `<p>No predictions available yet. Make sure today’s fixtures had odds (market 1 and/or 80).</p>`;
+          list.innerHTML = `<p>No predictions available yet. Make sure fixtures had odds (market 1 and/or 80).</p>`;
         } else {
-          list.innerHTML = preds.map(renderPredictionCard).join('');
+          preds.forEach(p => {
+            p.selections = (p.selections || []).filter(s => (s.edge || 0) >= minEdge);
+            if (p.best && p.best.edge < minEdge) p.best = null;
+          });
+          list.innerHTML = preds
+            .filter(p => (p.best || (p.selections && p.selections.length)))
+            .map(renderPredictionCard).join('') || '<p>No selections passed the min edge filter.</p>';
         }
       } catch (err) {
         list.innerHTML = `<div class="status error">Error: ${err.message}</div>`;
@@ -350,6 +355,48 @@
       `;
     }
 
+    async function startPulse() {
+      if (pulseTimer) clearInterval(pulseTimer);
+      await loadPulse();
+      pulseTimer = setInterval(loadPulse, 10000);
+    }
+
+    function stopPulse() {
+      if (pulseTimer) clearInterval(pulseTimer);
+      pulseTimer = null;
+    }
+
+    async function loadPulse() {
+      const list = document.getElementById('pulseList');
+      list.innerHTML = 'Loading live snapshot...';
+      try {
+        const res = await fetch('/api/live-pulse');
+        const data = await safeJson(res);
+        const items = (data && data.live) || [];
+        if (!items.length) {
+          list.innerHTML = '<p>No live matches at the moment.</p>';
+          return;
+        }
+        list.innerHTML = items.map(it => {
+          const mk = it.markets_available || {};
+          const mrk = [];
+          if (mk.FT_1X2) mrk.push('1X2');
+          if (mk.OU) mrk.push('OU 2.5');
+          const labels = mrk.length ? mrk.join(', ') : '—';
+          return `
+            <div class="recommendation-item" style="border-left-color:#667eea">
+              <strong>${it.name || ('Fixture ' + it.fixture_id)}</strong><br/>
+              Time: ${it.time ?? '-'}' &middot; Last event: ${it.last_event_min ?? '-'}' <br/>
+              Scores: ${it.scores ? JSON.stringify(it.scores) : '-'} <br/>
+              Markets: ${labels} &middot; Overround(1X2): ${it.overround_ft_1x2 ?? '-'}%
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        list.innerHTML = `<div class="status error">Error: ${e.message}</div>`;
+      }
+    }
+
     async function downloadReport() {
       const button = document.getElementById('downloadBtn');
       const originalText = button.textContent;
@@ -377,9 +424,7 @@
       }
     }
 
-    async function safeJson(res) {
-      try { return await res.json(); } catch { return null; }
-    }
+    async function safeJson(res) { try { return await res.json(); } catch { return null; } }
   </script>
 </body>
 </html>
