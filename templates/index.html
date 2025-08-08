@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Professional Betting Bot Analyzer</title>
   <style>
@@ -9,38 +9,29 @@
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
-      padding: 20px;
-      color: #333;
+      min-height: 100vh; padding: 20px; color: #333;
     }
     .container {
-      max-width: 1200px;
-      margin: 0 auto;
-      background: white;
-      border-radius: 20px;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-      overflow: hidden;
+      max-width: 1200px; margin: 0 auto; background: white; border-radius: 20px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1); overflow: hidden;
     }
     .header {
-      background: linear-gradient(135deg, #2c3e50, #34495e);
-      color: white;
-      padding: 40px 20px;
-      text-align: center;
+      background: linear-gradient(135deg, #2c3e50, #34495e); color: white;
+      padding: 40px 20px; text-align: center;
     }
     .header h1 { font-size: 2.5em; margin-bottom: 10px; }
     .header p { opacity: 0.9; font-size: 1.1em; }
     .content { padding: 40px 20px; }
     .form-group { margin-bottom: 30px; }
-    label {
-      display: block; margin-bottom: 10px; font-weight: 600; color: #2c3e50; font-size: 1.1em;
-    }
+    label { display: block; margin-bottom: 10px; font-weight: 600; color: #2c3e50; font-size: 1.1em; }
     input[type="text"] {
-      width: 100%; padding: 18px; border: 2px solid #e0e6ed; border-radius: 12px; font-size: 16px; transition: border-color 0.3s ease;
+      width: 100%; padding: 18px; border: 2px solid #e0e6ed; border-radius: 12px;
+      font-size: 16px; transition: border-color 0.3s ease;
     }
     input[type="text"]:focus { outline: none; border-color: #667eea; }
     .btn {
-      width: 100%; padding: 20px; border: none; border-radius: 12px; font-size: 18px; font-weight: 600; cursor: pointer;
-      transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px;
+      width: 100%; padding: 20px; border: none; border-radius: 12px; font-size: 18px; font-weight: 600;
+      cursor: pointer; transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px;
     }
     .btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
     .btn-success { background: linear-gradient(135deg, #2ecc71, #27ae60); color: white; }
@@ -72,6 +63,12 @@
     .recommendation-item {
       background: white; padding: 15px 20px; border-radius: 10px; margin-bottom: 12px; border-left: 4px solid #667eea; font-size: 1.05em; line-height: 1.4;
     }
+    .roadmap-phase {
+      background: white; border-radius: 12px; padding: 25px; margin-bottom: 20px; border-left: 5px solid #667eea; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    .phase-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+    .phase-title { font-weight: bold; font-size: 1.3em; color: #2c3e50; }
+    .phase-duration { background: #667eea; color: white; padding: 5px 15px; border-radius: 20px; font-size: 0.9em; font-weight: 500; }
     .hidden { display: none; }
     @media (max-width: 768px) {
       body { padding: 10px; }
@@ -121,6 +118,16 @@
           <pre id="discoveredIds" style="background:white;border-radius:12px;padding:16px;box-shadow:0 5px 15px rgba(0,0,0,0.05);overflow:auto;"></pre>
         </div>
 
+        <!-- Predictions section -->
+        <div class="section">
+          <h3>🎯 Bot Predictions</h3>
+          <div style="display:flex; gap:12px; margin-bottom:12px;">
+            <button class="btn btn-primary" id="predictionsBtn">🔮 Load Predictions</button>
+          </div>
+          <div id="predictionsNotice" class="status hidden">Run the analysis first, then load predictions.</div>
+          <div id="predictionsList"></div>
+        </div>
+
         <div class="section">
           <h3>📄 Complete Analysis Report</h3>
           <button class="btn btn-success" id="downloadBtn">📥 Download Complete Report</button>
@@ -135,6 +142,7 @@
 
     document.getElementById('analysisForm').addEventListener('submit', startAnalysis);
     document.getElementById('downloadBtn').addEventListener('click', downloadReport);
+    document.getElementById('predictionsBtn').addEventListener('click', loadPredictions);
 
     async function startAnalysis(e) {
       e.preventDefault();
@@ -144,13 +152,14 @@
         return;
       }
       try {
-        const res = await fetch('/api/start-test', { // FIXED ROUTE
+        const res = await fetch('/api/start-test', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ api_token: apiToken })
         });
         const data = await safeJson(res);
         if (!res.ok) throw new Error(data?.error || 'Failed to start analysis');
+
         isTestRunning = true;
         document.getElementById('startBtn').disabled = true;
         document.getElementById('startBtn').textContent = '🔄 Analysis Running...';
@@ -166,7 +175,7 @@
     function startProgressPolling() {
       testInterval = setInterval(async () => {
         try {
-          const res = await fetch('/api/test-progress'); // FIXED ROUTE
+          const res = await fetch('/api/test-progress');
           const data = await safeJson(res);
           updateProgress(data?.progress || { current: 0, total: 0, status: 'idle' });
 
@@ -174,6 +183,8 @@
             clearInterval(testInterval);
             isTestRunning = false;
             await loadResults();
+            // auto-load predictions when done
+            await loadPredictions();
           } else if (String(data?.progress?.status || '').includes('error')) {
             clearInterval(testInterval);
             isTestRunning = false;
@@ -207,9 +218,10 @@
 
     async function loadResults() {
       try {
-        const res = await fetch('/api/test-results'); // FIXED ROUTE
+        const res = await fetch('/api/test-results');
         const data = await safeJson(res);
         if (!res.ok) throw new Error(data?.error || 'Failed to load results');
+
         displayResults(data);
         document.getElementById('resultsSection').classList.remove('hidden');
         document.getElementById('startBtn').disabled = false;
@@ -224,8 +236,8 @@
       const summary = payload?.summary || { total:0, successful:0, failed:0, success_rate:0, avg_response_time:0, total_data_items:0 };
       const results = Array.isArray(payload?.results) ? payload.results : [];
       const ids = payload?.discovered_ids || {};
+      const analysis = payload?.analysis || {};
 
-      // Readiness (simple heuristic from success rate)
       const sr = Number(summary.success_rate) || 0;
       let level = 'insufficient';
       if (sr >= 90) level = 'excellent';
@@ -242,7 +254,6 @@
         level === 'moderate' ? 'Basic bot possible; consider adding more endpoints.' :
         'Coverage too thin—fix failing endpoints.';
 
-      // Summary cards
       document.getElementById('summaryGrid').innerHTML = `
         <div class="stat-card"><div class="stat-value">${summary.total}</div><div class="stat-label">Endpoints Tested</div></div>
         <div class="stat-card"><div class="stat-value" style="color:#27ae60">${summary.successful}</div><div class="stat-label">Successful</div></div>
@@ -252,7 +263,6 @@
         <div class="stat-card"><div class="stat-value">${(summary.total_data_items||0).toLocaleString()}</div><div class="stat-label">Data Items</div></div>
       `;
 
-      // Results list
       const resultList = document.getElementById('resultList');
       if (!results.length) {
         resultList.innerHTML = '<p>No results yet.</p>';
@@ -261,17 +271,83 @@
           const ok = r.success;
           const color = ok ? '#27ae60' : '#e74c3c';
           const msg = ok ? `${r.data_count} items` : (r.errors && r.errors[0]) || `HTTP ${r.status_code}`;
+          const rt = (typeof r.response_time === 'number') ? r.response_time.toFixed(2) : r.response_time;
           return `
             <div class="recommendation-item" style="border-left-color:${color}">
               <strong>${r.endpoint}</strong><br/>
-              Status: <span style="color:${color}">${ok ? 'OK' : 'Failed'}</span> — ${msg} — ${r.response_time.toFixed ? r.response_time.toFixed(2) : r.response_time}s
+              Status: <span style="color:${color}">${ok ? 'OK' : 'Failed'}</span> — ${msg} — ${rt}s
             </div>
           `;
         }).join('');
       }
 
-      // Discovered IDs
       document.getElementById('discoveredIds').textContent = JSON.stringify(ids, null, 2);
+    }
+
+    async function loadPredictions() {
+      const btn = document.getElementById('predictionsBtn');
+      const list = document.getElementById('predictionsList');
+      const notice = document.getElementById('predictionsNotice');
+
+      btn.disabled = true;
+      const originalText = btn.textContent;
+      btn.textContent = '🔄 Loading...';
+      notice.classList.add('hidden');
+
+      try {
+        const res = await fetch('/api/predictions');
+        const data = await safeJson(res);
+
+        if (!res.ok) throw new Error((data && data.message) || 'Failed to load predictions');
+
+        const preds = (data && data.predictions) || [];
+        if (!preds.length) {
+          list.innerHTML = `<p>No predictions available yet. Make sure today’s fixtures had odds (market 1 and/or 80).</p>`;
+        } else {
+          list.innerHTML = preds.map(renderPredictionCard).join('');
+        }
+      } catch (err) {
+        list.innerHTML = `<div class="status error">Error: ${err.message}</div>`;
+      } finally {
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }
+    }
+
+    function renderPredictionCard(p) {
+      const best = p.best;
+      const sels = Array.isArray(p.selections) ? p.selections : [];
+      const bestHtml = best ? `
+        <div class="recommendation-item" style="border-left-color:#27ae60">
+          <strong>Best:</strong> ${best.market} — <em>${best.pick}</em> @ <strong>${best.odds}</strong><br/>
+          Edge: ${(best.edge * 100).toFixed(1)}% &middot; Kelly (¼): ${(best.kelly_fraction * 100).toFixed(1)}% 
+          ${best.bookmaker_id ? `&middot; Bookmaker ID: ${best.bookmaker_id}` : ''}
+          <br/><small>${best.notes || ''}</small>
+        </div>` : `
+        <div class="recommendation-item" style="border-left-color:#f39c12">
+          No positive-edge selection found. Showing all computed selections below.
+        </div>`;
+
+      const listHtml = sels.map(s => `
+        <div class="recommendation-item" style="border-left-color:${s.edge > 0 ? '#27ae60' : '#e74c3c'}">
+          ${s.market} — <em>${s.pick}</em> @ <strong>${s.odds}</strong>
+          &middot; Edge: ${(s.edge * 100).toFixed(1)}%
+          &middot; Kelly (¼): ${(s.kelly_fraction * 100).toFixed(1)}%
+          ${s.bookmaker_id ? `&middot; BM: ${s.bookmaker_id}` : ''}
+          <br/><small>${s.notes || ''}</small>
+        </div>
+      `).join('');
+
+      return `
+        <div class="roadmap-phase">
+          <div class="phase-header">
+            <div class="phase-title">${p.name || 'Fixture ' + p.fixture_id}</div>
+            <div class="phase-duration">${p.starting_at ? new Date(p.starting_at).toLocaleString() : ''}</div>
+          </div>
+          ${bestHtml}
+          ${listHtml}
+        </div>
+      `;
     }
 
     async function downloadReport() {
