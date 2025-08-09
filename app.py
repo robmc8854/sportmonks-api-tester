@@ -17,13 +17,13 @@ import json
 import os
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 import logging
 
 import requests
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -706,4 +706,68 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 {chr(10).join([f"   🎲 {strategy}" for strategy in self.inventory.recommended_strategies])}
 """
         return report.strip()
-        app = application
+
+
+# =========================
+# Flask API (Gunicorn-ready)
+# =========================
+
+app = Flask(__name__)
+_analyzer: Optional[ComprehensiveSubscriptionAnalyzer] = None
+_analysis_thread: Optional[threading.Thread] = None
+
+
+@app.route("/", methods=["GET"])
+def root():
+    return jsonify({"service": "sportmonks-subscription-analyzer", "status": "ok"})
+
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "healthy", "timestamp": datetime.utcnow().isoformat()})
+
+
+@app.route("/api/analyze", methods=["POST"])
+def api_analyze():
+    global _analyzer, _analysis_thread
+    payload = request.get_json(silent=True) or {}
+    token = (payload.get("api_token") or "").strip()
+    if not token:
+        return jsonify({"error": "api_token is required"}), 400
+
+    if _analyzer and _analyzer.is_analyzing:
+        return jsonify({"error": "analysis already running"}), 409
+
+    _analyzer = ComprehensiveSubscriptionAnalyzer(token)
+    _analysis_thread = threading.Thread(target=_analyzer.run_complete_analysis, daemon=True)
+    _analysis_thread.start()
+    return jsonify({"started": True})
+
+
+@app.route("/api/progress", methods=["GET"])
+def api_progress():
+    if not _analyzer:
+        return jsonify({"phase": "idle", "current_test": "", "progress": 0, "detailed_log": [], "errors": []})
+    return jsonify(_analyzer.analysis_progress)
+
+
+@app.route("/api/results", methods=["GET"])
+def api_results():
+    if not _analyzer:
+        return jsonify({"error": "no analysis has been started"}), 400
+    inv = asdict(_analyzer.inventory)
+    # Convert nested ComponentCapability objects already handled by asdict()
+    return jsonify({
+        "inventory": inv,
+        "report": _analyzer.get_comprehensive_report()
+    })
+
+
+# Local dev; Gunicorn will import `application` or `app`
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", "8080"))
+    logger.info(f"Starting analyzer API on port {port}")
+    app.run(host="0.0.0.0", port=port, threaded=True)
+
+# For Gunicorn/Railway
+application = app
