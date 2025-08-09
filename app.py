@@ -706,3 +706,4 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 {chr(10).join([f"   🎲 {strategy}" for strategy in self.inventory.recommended_strategies])}
 """
         return report.strip()
+        app = application
