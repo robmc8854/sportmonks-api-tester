@@ -17,7 +17,7 @@ import json
 import os
 import threading
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 import logging
@@ -708,66 +708,251 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         return report.strip()
 
 
-# =========================
-# Flask API (Gunicorn-ready)
-# =========================
+# -----------------------------
+# Flask Application + HTML UI
+# -----------------------------
 
 app = Flask(__name__)
-_analyzer: Optional[ComprehensiveSubscriptionAnalyzer] = None
-_analysis_thread: Optional[threading.Thread] = None
+application = app  # for Gunicorn
+
+
+HTML_TEMPLATE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>SportMonks Subscription Analyzer</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: #10b981; text-align: center; margin-bottom: 30px; }
+        .card { background: #1e293b; border: 1px solid #334155; padding: 25px; margin: 20px 0; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .btn { background: #3b82f6; color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; transition: all 0.3s; }
+        .btn:hover { background: #2563eb; transform: translateY(-1px); }
+        .btn:disabled { background: #64748b; cursor: not-allowed; }
+        input { background: #0f172a; color: #e2e8f0; border: 2px solid #475569; padding: 12px; width: 400px; border-radius: 8px; font-size: 16px; }
+        input:focus { border-color: #3b82f6; outline: none; }
+        .progress { width: 100%; height: 12px; background: #334155; border-radius: 6px; overflow: hidden; margin: 15px 0; }
+        .progress-bar { height: 100%; background: linear-gradient(90deg, #10b981, #059669); width: 0%; transition: width 0.5s ease; }
+        .status { margin-top: 15px; color: #94a3b8; font-size: 14px; }
+        .phase { color: #3b82f6; font-weight: bold; }
+        .results { background: #0f172a; padding: 20px; border-radius: 8px; margin-top: 20px; }
+        .metric { display: inline-block; margin: 10px 15px; padding: 10px; background: #1e293b; border-radius: 6px; }
+        .metric-value { font-size: 24px; font-weight: bold; color: #10b981; }
+        .metric-label { font-size: 12px; color: #94a3b8; }
+        .report-section { margin: 20px 0; }
+        .report-text { background: #0f172a; padding: 15px; border-radius: 6px; font-family: monospace; font-size: 12px; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
+        .copy-btn { background: #059669; margin-top: 10px; }
+        .copy-btn:hover { background: #047857; }
+        .readiness-ready { color: #10b981; font-weight: bold; }
+        .readiness-partial { color: #f59e0b; font-weight: bold; }
+        .readiness-not { color: #ef4444; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 SportMonks Subscription Analyzer</h1>
+        <p style="text-align: center; color: #94a3b8; margin-bottom: 30px;">
+            Discover your subscription capabilities, analyze betting data access, and get AI bot recommendations
+        </p>
+
+        <div class="card">
+            <h3>🚀 Start Analysis</h3>
+            <input id="apiToken" type="text" placeholder="Enter your SportMonks API Token...">
+            <br><br>
+            <button class="btn" id="analyzeBtn" onclick="startAnalysis()">Analyze Subscription</button>
+            <div class="progress">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <div class="status">
+                <span class="phase" id="phase">Ready</span> - <span id="currentTest">Enter your API token to begin</span>
+            </div>
+        </div>
+
+        <div class="card" id="resultsCard" style="display: none;">
+            <h3>📊 Analysis Results</h3>
+            <div id="quickMetrics"></div>
+            <div id="readinessStatus"></div>
+        </div>
+
+        <div class="card" id="reportCard" style="display: none;">
+            <h3>📋 Complete Analysis Report</h3>
+            <button class="btn copy-btn" onclick="copyReport()">📋 Copy Full Report</button>
+            <div class="report-section">
+                <div class="report-text" id="fullReport"></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+let pollTimer = null;
+let fullReportData = "";
+
+async function startAnalysis() {
+    const token = document.getElementById('apiToken').value.trim();
+    if (!token) { alert('Please enter your SportMonks API token'); return; }
+
+    const btn = document.getElementById('analyzeBtn');
+    btn.disabled = true;
+    btn.textContent = 'Analyzing...';
+
+    try {
+        const response = await fetch('/api/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_token: token })
+        });
+        if (response.ok) startPolling();
+        else { throw new Error('Failed to start analysis'); }
+    } catch (err) {
+        alert('Error: ' + err.message);
+        btn.disabled = false;
+        btn.textContent = 'Analyze Subscription';
+    }
+}
+
+function startPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(async () => {
+        try {
+            const response = await fetch('/api/progress');
+            const data = await response.json();
+            const percent = (data.progress / 12) * 100;
+            document.getElementById('progressBar').style.width = percent + '%';
+            document.getElementById('phase').textContent = data.phase.toUpperCase();
+            document.getElementById('currentTest').textContent = data.current_test;
+
+            if (data.phase === 'completed') {
+                clearInterval(pollTimer);
+                loadResults();
+            } else if (data.phase === 'error') {
+                clearInterval(pollTimer);
+                alert('Analysis failed: ' + data.current_test);
+                resetUI();
+            }
+        } catch (err) {
+            console.error('Polling error:', err);
+        }
+    }, 1000);
+}
+
+async function loadResults() {
+    try {
+        const response = await fetch('/api/results');
+        const data = await response.json();
+        displayResults(data);
+        resetUI();
+    } catch (err) {
+        alert('Error loading results');
+        resetUI();
+    }
+}
+
+function displayResults(data) {
+    const inv = data.inventory;
+    const metrics = `
+        <div class="metric"><div class="metric-value">${inv.leagues_available}</div><div class="metric-label">Leagues</div></div>
+        <div class="metric"><div class="metric-value">${inv.fixtures_today}</div><div class="metric-label">Today's Matches</div></div>
+        <div class="metric"><div class="metric-value">${inv.live_matches}</div><div class="metric-label">Live Matches</div></div>
+        <div class="metric"><div class="metric-value">${inv.pre_match_odds_count}</div><div class="metric-label">Pre-match Odds</div></div>
+        <div class="metric"><div class="metric-value">${inv.live_odds_count}</div><div class="metric-label">Live Odds</div></div>
+        <div class="metric"><div class="metric-value">${inv.bot_readiness_score.toFixed(1)}</div><div class="metric-label">Readiness Score</div></div>
+    `;
+    document.getElementById('quickMetrics').innerHTML = metrics;
+
+    let readinessClass = 'readiness-not';
+    if (inv.bot_readiness_score >= 70) readinessClass = 'readiness-ready';
+    else if (inv.bot_readiness_score >= 40) readinessClass = 'readiness-partial';
+
+    document.getElementById('readinessStatus').innerHTML = `<p class="${readinessClass}">Readiness: ${inv.bot_readiness_score.toFixed(1)}/100</p>`;
+    document.getElementById('resultsCard').style.display = 'block';
+
+    fullReportData = data.report || '';
+    document.getElementById('fullReport').textContent = fullReportData;
+    document.getElementById('reportCard').style.display = 'block';
+}
+
+function copyReport() {
+    if (!fullReportData) return;
+    navigator.clipboard.writeText(fullReportData);
+    alert('Report copied to clipboard!');
+}
+
+function resetUI() {
+    const btn = document.getElementById('analyzeBtn');
+    btn.disabled = false;
+    btn.textContent = 'Analyze Subscription';
+}
+</script>
+</body>
+</html>
+"""
+
+
+# -----------------------------
+# Routes
+# -----------------------------
+
+analyzer: Optional[ComprehensiveSubscriptionAnalyzer] = None
 
 
 @app.route("/", methods=["GET"])
-def root():
-    return jsonify({"service": "sportmonks-subscription-analyzer", "status": "ok"})
-
-
-@app.route("/health", methods=["GET"])
-def health():
-    return jsonify({"status": "healthy", "timestamp": datetime.utcnow().isoformat()})
+def home():
+    return HTML_TEMPLATE
 
 
 @app.route("/api/analyze", methods=["POST"])
 def api_analyze():
-    global _analyzer, _analysis_thread
-    payload = request.get_json(silent=True) or {}
-    token = (payload.get("api_token") or "").strip()
-    if not token:
-        return jsonify({"error": "api_token is required"}), 400
+    global analyzer
+    data = request.get_json(silent=True) or {}
+    api_token = (data.get("api_token") or "").strip()
+    if not api_token:
+        return jsonify({"error": "API token required"}), 400
 
-    if _analyzer and _analyzer.is_analyzing:
-        return jsonify({"error": "analysis already running"}), 409
+    if analyzer and analyzer.is_analyzing:
+        return jsonify({"error": "Analysis already running"}), 400
 
-    _analyzer = ComprehensiveSubscriptionAnalyzer(token)
-    _analysis_thread = threading.Thread(target=_analyzer.run_complete_analysis, daemon=True)
-    _analysis_thread.start()
-    return jsonify({"started": True})
+    analyzer = ComprehensiveSubscriptionAnalyzer(api_token)
+
+    t = threading.Thread(target=analyzer.run_complete_analysis, daemon=True)
+    t.start()
+    return jsonify({"ok": True})
 
 
 @app.route("/api/progress", methods=["GET"])
 def api_progress():
-    if not _analyzer:
-        return jsonify({"phase": "idle", "current_test": "", "progress": 0, "detailed_log": [], "errors": []})
-    return jsonify(_analyzer.analysis_progress)
+    if not analyzer:
+        return jsonify({"phase": "idle", "current_test": "Waiting to start", "progress": 0})
+    return jsonify(analyzer.analysis_progress)
 
 
 @app.route("/api/results", methods=["GET"])
 def api_results():
-    if not _analyzer:
-        return jsonify({"error": "no analysis has been started"}), 400
-    inv = asdict(_analyzer.inventory)
-    # Convert nested ComponentCapability objects already handled by asdict()
+    if not analyzer:
+        return jsonify({"error": "No analyzer"}), 400
+    if analyzer.analysis_progress.get("phase") != "completed":
+        return jsonify({"error": "Analysis not complete"}), 400
+
     return jsonify({
-        "inventory": inv,
-        "report": _analyzer.get_comprehensive_report()
+        "inventory": analyzer.inventory.__dict__,
+        "report": analyzer.get_comprehensive_report()
     })
 
 
-# Local dev; Gunicorn will import `application` or `app`
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat()
+    })
+
+
+# -----------------------------
+# Gunicorn / Dev entrypoints
+# -----------------------------
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8080"))
-    logger.info(f"Starting analyzer API on port {port}")
-    app.run(host="0.0.0.0", port=port, threaded=True)
-
-# For Gunicorn/Railway
-application = app
+    debug = os.environ.get("DEBUG", "false").lower() == "true"
+    logger.info(f"Starting analyzer on port {port}")
+    app.run(host="0.0.0.0", port=port, debug=debug, threaded=True)
