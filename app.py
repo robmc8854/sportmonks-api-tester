@@ -1,614 +1,1194 @@
 #!/usr/bin/env python3
 """
-REAL DATA PROCESSING MODULE
-Filters sample data and processes actual upcoming fixtures for real betting opportunities
+COMPLETE SPORTMONKS SUBSCRIPTION ANALYZER - ALL COMPONENTS MAPPED
+
+Based on your extensive dashboard components, this analyzer will test and map:
+✅ Core Data (Fixtures, Livescores, Leagues, Teams, Players)
+✅ Odds & Predictions (Pre-match, Live, Bookmakers, Markets, AI Predictions)
+✅ Advanced Analytics (xG, Pressure Index, Trends, Player Efficiency)
+✅ Statistics (Match Centre, Team Stats, Player Profiles, Head2Head)
+✅ Real-time Data (Live Standings, Events Timeline, Commentaries)
+✅ Supplementary Data (Injuries, Referees, TV Stations, News)
+
+This will generate a comprehensive data inventory for building an advanced AI betting bot.
 """
 
+import json
+import os
+import threading
+import time
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Tuple
 import logging
-from datetime import datetime, timedelta, date
-from typing import Dict, List, Optional, Tuple, Any
 
-# Import the class at the top of your file (as requested)
-from quick_value_bet_finder import QuickValueBetFinder
+import requests
+from flask import Flask, jsonify, request
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class RealDataProcessor:
-    def __init__(self, api_client):
-        self.api = api_client
-        self.today = date.today()
-        self.tomorrow = self.today + timedelta(days=1)
+@dataclass
+class ComponentCapability:
+    component_name: str
+    endpoint_url: str
+    category: str
+    accessible: bool
+    data_count: int
+    sample_data: Dict
+    api_features: List[str] = field(default_factory=list)
+    betting_value: str = "medium"
+    ai_potential: str = "medium"
 
-        # Filter out sample/test fixture IDs (these are often historical)
-        self.sample_fixture_ids = {19135003, 19427455}  # Liverpool vs Tottenham and other samples
 
-    def filter_real_fixtures(self, raw_data: Dict) -> List[Dict]:
-        """Filter out sample data and return only real upcoming fixtures"""
-        real_fixtures: List[Dict] = []
+@dataclass
+class ComprehensiveInventory:
+    # Authentication & Subscription
+    subscription_tier: str = "unknown"
+    api_authenticated: bool = False
+    total_components_enabled: int = 0
 
-        # Process upcoming fixtures from the next few days
-        for key, data in raw_data.items():
-            if key.startswith("upcoming_") and isinstance(data, dict):
-                # Extract date from key like 'upcoming_2025-08-08'
-                parts = key.split("_")
-                if len(parts) < 2:
-                    continue
-                date_str = parts[1]
+    # Core Football Data
+    leagues_available: int = 0
+    teams_available: int = 0
+    players_available: int = 0
+    fixtures_today: int = 0
+    fixtures_tomorrow: int = 0
+    live_matches: int = 0
 
-                try:
-                    fixture_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    # Odds & Betting Components
+    bookmakers_count: int = 0
+    betting_markets_count: int = 0
+    pre_match_odds_count: int = 0
+    live_odds_count: int = 0
+    predictions_available: bool = False
 
-                    # Only process fixtures from today onwards
-                    if fixture_date >= self.today:
-                        fixtures = self.extract_fixtures_from_data(data, fixture_date)
-                        real_fixtures.extend(fixtures)
+    # Advanced Analytics
+    xg_match_data_available: bool = False
+    xg_player_efficiency_available: bool = False
+    pressure_index_available: bool = False
+    trends_available: bool = False
 
-                except ValueError:
-                    continue
+    # Statistics & Analysis
+    match_centre_available: bool = False
+    player_profiles_available: bool = False
+    team_statistics_available: bool = False
+    head2head_available: bool = False
+    topscorers_available: bool = False
 
-        # Filter out sample fixtures
-        real_fixtures = [f for f in real_fixtures if f.get("id") not in self.sample_fixture_ids]
+    # Real-time Features
+    live_standings_available: bool = False
+    live_commentary_available: bool = False
+    events_timeline_available: bool = False
+    lineup_data_available: bool = False
 
-        logger.info(f"Filtered {len(real_fixtures)} real upcoming fixtures")
-        return real_fixtures
+    # Supplementary Data
+    injuries_suspensions_available: bool = False
+    referee_stats_available: bool = False
+    tv_stations_available: bool = False
+    news_available: bool = False
 
-    def extract_fixtures_from_data(self, data: Dict, fixture_date: date) -> List[Dict]:
-        """Extract fixture information from API response"""
-        fixtures: List[Dict] = []
+    # Component Analysis
+    working_components: List[ComponentCapability] = field(default_factory=list)
+    failed_components: List[ComponentCapability] = field(default_factory=list)
+    high_value_components: List[str] = field(default_factory=list)
+    ai_ready_features: List[str] = field(default_factory=list)
 
-        if "data" in data and isinstance(data["data"], list):
-            for fixture in data["data"]:
-                try:
-                    # Parse fixture data
-                    fixture_info = {
-                        "id": fixture.get("id"),
-                        "home_team_id": None,
-                        "away_team_id": None,
-                        "home_team_name": "Unknown",
-                        "away_team_name": "Unknown",
-                        "league_id": fixture.get("league_id"),
-                        "league_name": "Unknown",
-                        "kickoff_time": None,
-                        "status": (fixture.get("state", {}) or {}).get("short_name", "NS"),
-                        "date": fixture_date,
-                    }
+    # Bot Building Assessment
+    bot_readiness_score: float = 0.0
+    recommended_strategies: List[str] = field(default_factory=list)
+    advanced_features_available: List[str] = field(default_factory=list)
 
-                    # Extract team information
-                    participants = fixture.get("participants", [])
-                    if len(participants) >= 2:
-                        home_is_first = (participants[0].get("meta", {}) or {}).get("location") == "home"
-                        home_team = participants[0] if home_is_first else participants[1]
-                        away_team = participants[1] if home_is_first else participants[0]
 
-                        fixture_info.update(
-                            {
-                                "home_team_id": home_team.get("id"),
-                                "away_team_id": away_team.get("id"),
-                                "home_team_name": home_team.get("name", "Unknown"),
-                                "away_team_name": away_team.get("name", "Unknown"),
-                            }
-                        )
+# -------- NEW: endpoint registry spec --------
+@dataclass
+class EndpointSpec:
+    name: str
+    url_template: str                  # e.g. "/fixtures/{fixture_id}?include=participants"
+    category: str                      # "core" | "betting" | "analytics" | ...
+    params: Optional[Dict] = None      # default query params
+    ai_potential: str = "medium"
 
-                    # Extract league information
-                    if "league" in fixture and isinstance(fixture["league"], dict):
-                        fixture_info.update(
-                            {
-                                "league_id": fixture["league"].get("id"),
-                                "league_name": fixture["league"].get("name", "Unknown"),
-                            }
-                        )
 
-                    # Parse kickoff time
-                    if "starting_at" in fixture and fixture["starting_at"]:
-                        try:
-                            kickoff_time = datetime.fromisoformat(str(fixture["starting_at"]).replace("Z", "+00:00"))
-                            fixture_info["kickoff_time"] = kickoff_time
-                        except Exception:
-                            pass
+class ComprehensiveSubscriptionAnalyzer:
+    def __init__(self, api_token: str):
+        self.api_token = api_token
+        self.base_url = "https://api.sportmonks.com/v3/football"
+        self.odds_url = "https://api.sportmonks.com/v3/odds"
+        self.core_url = "https://api.sportmonks.com/v3/core"
 
-                    # Only include fixtures that are not started yet
-                    if (
-                        fixture_info["status"] in ["NS", "TBD", "POSTP"]
-                        and fixture_info["home_team_id"]
-                        and fixture_info["away_team_id"]
-                    ):
-                        fixtures.append(fixture_info)
+        self.session = requests.Session()
+        self.session.headers.update({
+            "Authorization": f"Bearer {api_token}",
+            "Accept": "application/json",
+            "User-Agent": "SportMonks-Comprehensive-Analyzer/1.0"
+        })
 
-                except Exception as e:
-                    logger.error(f"Error parsing fixture: {e}")
-                    continue
+        self.inventory = ComprehensiveInventory()
+        self.analysis_progress = {
+            "phase": "idle",
+            "current_test": "",
+            "progress": 0,
+            "total_phases": 12,
+            "detailed_log": [],
+            "errors": []
+        }
+        self.is_analyzing = False
 
-        return fixtures
+        # NEW: discovered IDs + endpoint registry
+        self.discovered_ids: Dict[str, Any] = {}
+        self.endpoint_registry: List[EndpointSpec] = self._build_endpoint_registry()
 
-    def get_available_odds(self, raw_data: Dict, fixture_ids: List[int]) -> Dict[int, List[Dict]]:
-        """Extract available odds for specific fixtures"""
-        fixture_odds: Dict[int, List[Dict]] = {}
-
-        for key, data in raw_data.items():
-            if "odds" in key and isinstance(data, dict):
-                odds_data = self.parse_odds_data(data)
-
-                for odds in odds_data:
-                    fixture_id = odds.get("fixture_id")
-                    if fixture_id in fixture_ids:
-                        if fixture_id not in fixture_odds:
-                            fixture_odds[fixture_id] = []
-                        fixture_odds[fixture_id].append(odds)
-
-        logger.info(f"Found odds for {len(fixture_odds)} fixtures")
-        return fixture_odds
-
-    def parse_odds_data(self, odds_response: Dict) -> List[Dict]:
-        """Parse odds data from SportMonks response"""
-        odds_list: List[Dict] = []
-
-        if "data" in odds_response and isinstance(odds_response["data"], list):
-            for odds_item in odds_response["data"]:
-                try:
-                    parsed_odds = {
-                        "fixture_id": odds_item.get("fixture_id"),
-                        "market_id": odds_item.get("market_id"),
-                        "bookmaker_id": odds_item.get("bookmaker_id"),
-                        "bookmaker_name": (odds_item.get("bookmaker", {}) or {}).get("name", "Unknown"),
-                        "market_name": (odds_item.get("market", {}) or {}).get("name", "Unknown"),
-                        "selections": [],
-                    }
-
-                    # Extract selections (the actual odds)
-                    for selection in odds_item.get("selections", []):
-                        try:
-                            odds_val = float(selection.get("odds", 0))
-                        except (TypeError, ValueError):
-                            odds_val = 0.0
-
-                        parsed_odds["selections"].append(
-                            {
-                                "name": selection.get("name", ""),
-                                "odds": odds_val,
-                                "active": selection.get("active", True),
-                            }
-                        )
-
-                    if parsed_odds["fixture_id"] and parsed_odds["selections"]:
-                        odds_list.append(parsed_odds)
-
-                except Exception as e:
-                    logger.error(f"Error parsing odds item: {e}")
-                    continue
-
-        return odds_list
-
-    def generate_real_predictions(self, fixtures: List[Dict]) -> List[Dict]:
-        """Generate predictions for real upcoming fixtures"""
-        predictions: List[Dict] = []
-
-        for fixture in fixtures:
-            try:
-                # Skip if missing essential data
-                if not fixture.get("home_team_id") or not fixture.get("away_team_id"):
-                    continue
-
-                # Generate basic prediction using available data
-                prediction = self.calculate_match_prediction(fixture)
-
-                if prediction:
-                    predictions.append(prediction)
-
-            except Exception as e:
-                logger.error(f"Error generating prediction for fixture {fixture.get('id')}: {e}")
-                continue
-
-        logger.info(f"Generated {len(predictions)} real predictions")
-        return predictions
-
-    def calculate_match_prediction(self, fixture: Dict) -> Optional[Dict]:
-        """Calculate prediction for a single match"""
+    # ---------- NEW: robust request w/ gentle retry ----------
+    def _api_request(self, url: str, params: Dict = None) -> Tuple[int, Dict, str]:
+        """Enhanced API request with comprehensive logging"""
         try:
-            # Basic prediction algorithm using team IDs and historical patterns
-            home_team_id = fixture["home_team_id"]
-            away_team_id = fixture["away_team_id"]
-            _ = (home_team_id, away_team_id)  # referenced, reserved for future use
+            request_params = {"api_token": self.api_token}
+            if params:
+                request_params.update(params)
 
-            # Simple prediction model (you can enhance this)
-            # For now, use basic probabilities with slight home advantage
-            home_win_prob = 0.40  # 40% home win (with home advantage)
-            draw_prob = 0.30  # 30% draw
-            away_win_prob = 0.30  # 30% away win
+            resp = None
+            for attempt in range(3):
+                resp = self.session.get(url, params=request_params, timeout=30)
+                if resp.status_code != 429:
+                    break
+                time.sleep(1.5 * (attempt + 1))
 
-            # Over/Under 2.5 goals (typical average is around 2.7 goals per match)
-            over_2_5_prob = 0.55  # 55% over 2.5
-            under_2_5_prob = 0.45  # 45% under 2.5
+            status_code = resp.status_code if resp is not None else 0
+            text_preview = (resp.text[:200] if (resp is not None and resp.text) else "")
+            log_entry = f"[{status_code}] {url}"
+            if status_code != 200:
+                log_entry += f" - {text_preview}"
 
-            # Both teams to score (historical average ~50-55%)
-            btts_yes_prob = 0.52  # 52% both teams score
-            btts_no_prob = 0.48  # 48% not both teams score
+            self.analysis_progress["detailed_log"].append(log_entry)
 
-            # Expected goals (league average)
-            expected_home_goals = 1.4
-            expected_away_goals = 1.1
+            try:
+                data = resp.json() if (resp is not None and resp.text) else {}
+            except Exception:
+                data = {}
 
-            # Confidence based on data availability (basic for now)
-            confidence = 65.0
-
-            return {
-                "fixture_id": fixture["id"],
-                "match": f"{fixture['home_team_name']} vs {fixture['away_team_name']}",
-                "home_team": fixture["home_team_name"],
-                "away_team": fixture["away_team_name"],
-                "league": fixture["league_name"],
-                "kickoff_time": fixture["kickoff_time"].isoformat() if fixture.get("kickoff_time") else None,
-                "status": fixture["status"],
-                "home_win_prob": home_win_prob,
-                "draw_prob": draw_prob,
-                "away_win_prob": away_win_prob,
-                "over_2_5_prob": over_2_5_prob,
-                "under_2_5_prob": under_2_5_prob,
-                "btts_yes_prob": btts_yes_prob,
-                "btts_no_prob": btts_no_prob,
-                "expected_home_goals": expected_home_goals,
-                "expected_away_goals": expected_away_goals,
-                "confidence": confidence,
-                "prediction_type": "basic_model",
-            }
+            return status_code, data, ""
 
         except Exception as e:
-            logger.error(f"Error calculating prediction: {e}")
-            return None
+            error_msg = f"Request failed: {str(e)[:200]}"
+            self.analysis_progress["errors"].append(error_msg)
+            return 0, {}, error_msg
 
-    def find_value_bets_real_data(self, predictions: List[Dict], fixture_odds: Dict[int, List[Dict]]) -> List[Dict]:
-        """Find value bets using real prediction and odds data"""
-        value_bets: List[Dict] = []
+    # ---------- existing component tester (unchanged) ----------
+    def test_component(
+        self,
+        component_name: str,
+        endpoint_url: str,
+        category: str,
+        params: Dict = None,
+        ai_potential: str = "medium"
+    ) -> ComponentCapability:
+        """Test individual component capability"""
+        status, data, error = self._api_request(endpoint_url, params or {"per_page": "25"})
 
-        for prediction in predictions:
-            fixture_id = prediction["fixture_id"]
+        data_count = 0
+        sample_data = {}
+        api_features: List[str] = []
 
-            if fixture_id not in fixture_odds:
-                continue
+        if status == 200:
+            if isinstance(data, dict) and "data" in data:
+                data_items = data["data"]
+                if isinstance(data_items, list):
+                    data_count = len(data_items)
+                    sample_data = data_items[0] if data_items else {}
+                else:
+                    data_count = 1
+                    sample_data = data_items if isinstance(data_items, dict) else {}
 
-            odds_for_fixture = fixture_odds[fixture_id]
+                # Analyze API features from sample data
+                if sample_data:
+                    api_features = list(sample_data.keys())[:10]  # Top 10 fields
 
-            # Process each odds entry for this fixture
-            for odds_entry in odds_for_fixture:
-                market_id = odds_entry.get("market_id")
-
-                # Process 3-way result (market_id = 1)
-                if market_id == 1:
-                    bets = self.process_1x2_market(prediction, odds_entry)
-                    value_bets.extend(bets)
-
-                # Process Over/Under 2.5 (market_id = 5)
-                elif market_id == 5:
-                    bets = self.process_ou_market(prediction, odds_entry)
-                    value_bets.extend(bets)
-
-                # Process Both Teams to Score (market_id = 14)
-                elif market_id == 14:
-                    bets = self.process_btts_market(prediction, odds_entry)
-                    value_bets.extend(bets)
-
-        # Sort by edge (highest first)
-        value_bets.sort(key=lambda x: x.get("edge", 0), reverse=True)
-
-        logger.info(f"Found {len(value_bets)} value betting opportunities")
-        return value_bets
-
-    def process_1x2_market(self, prediction: Dict, odds_entry: Dict) -> List[Dict]:
-        """Process 1X2 market for value bets"""
-        value_bets: List[Dict] = []
-
-        # Map predictions to bet types
-        bet_mappings = {
-            "Home": ("home_win_prob", "1"),
-            "Draw": ("draw_prob", "X"),
-            "Away": ("away_win_prob", "2"),
-        }
-
-        for selection in odds_entry.get("selections", []):
-            selection_name = selection.get("name", "")
-            odds_value = selection.get("odds", 0)
-
-            if odds_value <= 1.0:
-                continue
-
-            # Find matching prediction probability
-            prob_key = None
-            bet_type = None
-
-            for name_pattern, (prob_k, bet_t) in bet_mappings.items():
-                if name_pattern.lower() in selection_name.lower():
-                    prob_key = prob_k
-                    bet_type = bet_t
-                    break
-
-            if prob_key and bet_type:
-                predicted_prob = prediction.get(prob_key, 0)
-                implied_prob = 1 / odds_value
-                edge = predicted_prob - implied_prob
-
-                # Minimum 3% edge for real bets
-                if edge > 0.03:
-                    value_bets.append(
-                        {
-                            "fixture_id": prediction["fixture_id"],
-                            "match": prediction["match"],
-                            "market": "1X2",
-                            "bet_type": bet_type,
-                            "selection": selection_name,
-                            "odds": odds_value,
-                            "predicted_prob": predicted_prob,
-                            "implied_prob": implied_prob,
-                            "edge": edge,
-                            "edge_percent": edge * 100,
-                            "confidence": prediction.get("confidence", 0),
-                            "bookmaker": odds_entry.get("bookmaker_name", "Unknown"),
-                            "kickoff_time": prediction.get("kickoff_time"),
-                            "recommendation": self.get_bet_recommendation(edge, prediction.get("confidence", 0)),
-                        }
-                    )
-
-        return value_bets
-
-    def process_ou_market(self, prediction: Dict, odds_entry: Dict) -> List[Dict]:
-        """Process Over/Under market for value bets"""
-        value_bets: List[Dict] = []
-
-        for selection in odds_entry.get("selections", []):
-            selection_name = selection.get("name", "").lower()
-            odds_value = selection.get("odds", 0)
-
-            if odds_value <= 1.0:
-                continue
-
-            # Determine bet type and probability
-            if "over" in selection_name and "2.5" in selection_name:
-                predicted_prob = prediction.get("over_2_5_prob", 0)
-                bet_type = "Over 2.5"
-            elif "under" in selection_name and "2.5" in selection_name:
-                predicted_prob = prediction.get("under_2_5_prob", 0)
-                bet_type = "Under 2.5"
-            else:
-                continue
-
-            implied_prob = 1 / odds_value
-            edge = predicted_prob - implied_prob
-
-            if edge > 0.03:
-                value_bets.append(
-                    {
-                        "fixture_id": prediction["fixture_id"],
-                        "match": prediction["match"],
-                        "market": "Over/Under 2.5",
-                        "bet_type": bet_type,
-                        "selection": selection.get("name", ""),
-                        "odds": odds_value,
-                        "predicted_prob": predicted_prob,
-                        "implied_prob": implied_prob,
-                        "edge": edge,
-                        "edge_percent": edge * 100,
-                        "confidence": prediction.get("confidence", 0),
-                        "bookmaker": odds_entry.get("bookmaker_name", "Unknown"),
-                        "kickoff_time": prediction.get("kickoff_time"),
-                        "recommendation": self.get_bet_recommendation(edge, prediction.get("confidence", 0)),
-                    }
-                )
-
-        return value_bets
-
-    def process_btts_market(self, prediction: Dict, odds_entry: Dict) -> List[Dict]:
-        """Process Both Teams to Score market for value bets"""
-        value_bets: List[Dict] = []
-
-        for selection in odds_entry.get("selections", []):
-            selection_name = selection.get("name", "").lower()
-            odds_value = selection.get("odds", 0)
-
-            if odds_value <= 1.0:
-                continue
-
-            # Determine bet type and probability
-            if "yes" in selection_name or "both" in selection_name:
-                predicted_prob = prediction.get("btts_yes_prob", 0)
-                bet_type = "BTTS Yes"
-            elif "no" in selection_name:
-                predicted_prob = prediction.get("btts_no_prob", 0)
-                bet_type = "BTTS No"
-            else:
-                continue
-
-            implied_prob = 1 / odds_value
-            edge = predicted_prob - implied_prob
-
-            if edge > 0.03:
-                value_bets.append(
-                    {
-                        "fixture_id": prediction["fixture_id"],
-                        "match": prediction["match"],
-                        "market": "Both Teams to Score",
-                        "bet_type": bet_type,
-                        "selection": selection.get("name", ""),
-                        "odds": odds_value,
-                        "predicted_prob": predicted_prob,
-                        "implied_prob": implied_prob,
-                        "edge": edge,
-                        "edge_percent": edge * 100,
-                        "confidence": prediction.get("confidence", 0),
-                        "bookmaker": odds_entry.get("bookmaker_name", "Unknown"),
-                        "kickoff_time": prediction.get("kickoff_time"),
-                        "recommendation": self.get_bet_recommendation(edge, prediction.get("confidence", 0)),
-                    }
-                )
-
-        return value_bets
-
-    def get_bet_recommendation(self, edge: float, confidence: float) -> str:
-        """Get betting recommendation based on edge and confidence"""
-        if edge > 0.15 and confidence > 70:
-            return "STRONG BUY"
-        elif edge > 0.10 and confidence > 60:
-            return "BUY"
-        elif edge > 0.05 and confidence > 50:
-            return "CONSIDER"
-        elif edge > 0.03:
-            return "WEAK VALUE"
-        else:
-            return "NO VALUE"
-
-    def process_real_betting_opportunities(self, raw_data: Dict) -> Dict:
-        """Main method to process real betting opportunities"""
-        logger.info("Processing real betting opportunities...")
-
-        # 1. Filter real upcoming fixtures
-        real_fixtures = self.filter_real_fixtures(raw_data)
-
-        if not real_fixtures:
-            logger.warning("No real upcoming fixtures found")
-            return {
-                "status": "no_fixtures",
-                "message": "No upcoming fixtures found for betting analysis",
-                "fixtures_processed": 0,
-                "predictions": [],
-                "value_bets": [],
-                "summary": {
-                    "summary_text": "No upcoming fixtures found for betting analysis."
-                }
-            }
-
-        # 2. Generate predictions for real fixtures
-        predictions = self.generate_real_predictions(real_fixtures)
-
-        # 3. Get available odds for these fixtures
-        fixture_ids = [f["id"] for f in real_fixtures]
-        fixture_odds = self.get_available_odds(raw_data, fixture_ids)
-
-        # 4. Find value bets
-        value_bets = self.find_value_bets_real_data(predictions, fixture_odds)
-
-        # 5. Generate summary
-        summary = self.generate_betting_summary(real_fixtures, predictions, value_bets)
-
-        return {
-            "status": "success",
-            "fixtures_processed": len(real_fixtures),
-            "predictions_generated": len(predictions),
-            "value_bets_found": len(value_bets),
-            "fixtures": real_fixtures[:10],  # Top 10 fixtures
-            "predictions": predictions,
-            "value_bets": value_bets,
-            "summary": summary,
-        }
-
-    def generate_betting_summary(
-        self, fixtures: List[Dict], predictions: List[Dict], value_bets: List[Dict]
-    ) -> Dict:
-        """Generate comprehensive betting summary"""
-        if not value_bets:
-            return {
-                "total_opportunities": 0,
-                "avg_edge": 0,
-                "best_bet": None,
-                "strong_bets": 0,
-                "recommended_bets": 0,
-                "fixtures_analyzed": len(fixtures),
-                "predictions_made": len(predictions),
-                "summary_text": f"Analyzed {len(fixtures)} fixtures, generated {len(predictions)} predictions, but found no value betting opportunities today.",
-            }
-
-        # Calculate metrics
-        total_edge = sum(bet["edge"] for bet in value_bets)
-        avg_edge = total_edge / len(value_bets)
-
-        strong_bets = len([bet for bet in value_bets if bet["recommendation"] in ["STRONG BUY", "BUY"]])
-        recommended_bets = len(
-            [bet for bet in value_bets if bet["recommendation"] in ["STRONG BUY", "BUY", "CONSIDER"]]
+        return ComponentCapability(
+            component_name=component_name,
+            endpoint_url=endpoint_url,
+            category=category,
+            accessible=(status == 200),
+            data_count=data_count,
+            sample_data=sample_data,
+            api_features=api_features,
+            betting_value="high" if "odds" in component_name.lower() or "prediction" in component_name.lower() else "medium",
+            ai_potential=ai_potential
         )
 
-        best_bet = max(value_bets, key=lambda x: x["edge"]) if value_bets else None
+    # ---------- NEW: endpoint registry builder ----------
+    def _build_endpoint_registry(self) -> List[EndpointSpec]:
+        b, o = self.base_url, self.odds_url
+        return [
+            # Core discovery
+            EndpointSpec("Leagues", f"{b}/leagues", "core", {"per_page": "200", "include": "country,seasons.current"}, "high"),
+            EndpointSpec("Seasons", f"{b}/seasons", "core", {"per_page": "200"}),
+            EndpointSpec("Teams", f"{b}/teams", "core", {"per_page": "200"}, "high"),
+            EndpointSpec("Players", f"{b}/players", "core", {"per_page": "200"}),
+            EndpointSpec("Standings", f"{b}/standings", "statistics"),
+            EndpointSpec("Livescores", f"{b}/livescores", "core", None, "high"),
+            EndpointSpec("Livescores Inplay", f"{b}/livescores/inplay", "core", None, "high"),
+            EndpointSpec("Fixtures Today", f"{b}/fixtures/date/{{today}}", "core"),
+            EndpointSpec("Fixtures Tomorrow", f"{b}/fixtures/date/{{tomorrow}}", "core"),
+            EndpointSpec("Fixtures Between", f"{b}/fixtures/between/{{from_date}}/{{to_date}}", "core"),
 
-        return {
-            "total_opportunities": len(value_bets),
-            "avg_edge": avg_edge,
-            "avg_edge_percent": avg_edge * 100,
-            "best_bet": best_bet,
-            "strong_bets": strong_bets,
-            "recommended_bets": recommended_bets,
-            "fixtures_analyzed": len(fixtures),
-            "predictions_made": len(predictions),
-            "summary_text": f"Analyzed {len(fixtures)} real fixtures and found {len(value_bets)} value betting opportunities with average {avg_edge*100:.1f}% edge.",
+            # By ID
+            EndpointSpec("League by ID", f"{b}/leagues/{{league_id}}", "core", {"include": "country,seasons.current"}),
+            EndpointSpec("Season by ID", f"{b}/seasons/{{season_id}}", "core", {"include": "rounds,stages"}),
+            EndpointSpec("Round by ID (basic)", f"{b}/rounds/{{round_id}}", "core", {"include": "fixtures.participants;fixtures.league;league.country"}),
+            EndpointSpec("Round by ID (odds filtered)", f"{b}/rounds/{{round_id}}", "betting",
+                         {"include": "fixtures.odds.market;fixtures.odds.bookmaker;fixtures.participants;league.country",
+                          "filters": "markets:1;bookmakers:2"}, "high"),
+            EndpointSpec("Team by ID", f"{b}/teams/{{team_id}}", "statistics", {"include": "statistics,squad,venue"}, "high"),
+            EndpointSpec("Player by ID", f"{b}/players/{{player_id}}", "statistics", {"include": "statistics,team"}),
+            EndpointSpec("Fixture by ID (rich)", f"{b}/fixtures/{{fixture_id}}", "core",
+                         {"include": "participants,league,venue,state,scores,events.type,events.player,statistics,lineups,odds.market,odds.bookmaker"}, "high"),
+
+            # Odds
+            EndpointSpec("Bookmakers", f"{o}/bookmakers", "betting", None, "high"),
+            EndpointSpec("Markets", f"{o}/markets", "betting", None, "high"),
+            EndpointSpec("Pre-match Odds (global)", f"{o}/pre-match", "betting", {"per_page": "100"}, "high"),
+            EndpointSpec("Live Odds (inplay)", f"{o}/inplay", "betting", {"per_page": "100"}, "high"),
+            EndpointSpec("Pre-match Odds by Fixture", f"{o}/pre-match", "betting",
+                         {"per_page": "50", "filter[fixture_id]": "{fixture_id}", "include": "fixture,bookmaker,market"}, "high"),
+
+            # Advanced / Optional
+            EndpointSpec("Head-to-Head", f"{b}/head2head/{{team_id_a}}/{{team_id_b}}", "statistics", {"per_page": "25"}, "high"),
+            EndpointSpec("Live Standings", f"{b}/standings/live", "realtime"),
+            EndpointSpec("Expected Goals (fixture)", f"{b}/expected-goals/fixtures/{{fixture_id}}", "analytics", None, "high"),
+            EndpointSpec("Predictions (probabilities)", f"{b}/predictions/probabilities", "ai", None, "high"),
+
+            # Supplementary
+            EndpointSpec("Referees", f"{b}/referees", "supplementary", {"per_page": "200"}),
+            EndpointSpec("Injuries", f"{b}/injuries", "supplementary", {"per_page": "200"}),
+            EndpointSpec("TV Stations", f"{b}/tv-stations", "supplementary", {"per_page": "200"}),
+        ]
+
+    # ---------- NEW: seed ID discovery ----------
+    def _discover_seed_ids(self) -> None:
+        """Populate self.discovered_ids with a small, real set of IDs for later endpoint tests."""
+        self.discovered_ids = {}
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        tomorrow = (datetime.utcnow() + timedelta(days=1)).strftime("%Y-%m-%d")
+        from_date = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%d")
+        to_date = (datetime.utcnow() + timedelta(days=1)).strftime("%Y-%m-%d")
+
+        self.discovered_ids.update({
+            "today": today, "tomorrow": tomorrow,
+            "from_date": from_date, "to_date": to_date
+        })
+
+        # Leagues -> Seasons
+        _, leagues_json, _ = self._api_request(f"{self.base_url}/leagues", {"per_page": "50", "include": "seasons"})
+        leagues = leagues_json.get("data", []) if isinstance(leagues_json, dict) else []
+        if leagues:
+            lg = leagues[0]
+            self.discovered_ids["league_id"] = lg.get("id")
+            seasons = lg.get("seasons") or []
+            if seasons:
+                self.discovered_ids["season_id"] = seasons[0].get("id")
+
+        # Rounds from season
+        if self.discovered_ids.get("season_id"):
+            _, s_json, _ = self._api_request(f"{self.base_url}/seasons/{self.discovered_ids['season_id']}", {"include": "rounds"})
+            rounds = (s_json.get("data", {}) or {}).get("rounds") or []
+            if rounds:
+                self.discovered_ids["round_id"] = rounds[0].get("id")
+
+        # Fixtures today or between
+        _, fixtures_today_json, _ = self._api_request(f"{self.base_url}/fixtures/date/{today}")
+        fixtures = fixtures_today_json.get("data", []) if isinstance(fixtures_today_json, dict) else []
+        if not fixtures:
+            _, fx_json, _ = self._api_request(f"{self.base_url}/fixtures/between/{from_date}/{to_date}")
+            fixtures = fx_json.get("data", []) if isinstance(fx_json, dict) else []
+
+        if fixtures:
+            fx = fixtures[0]
+            self.discovered_ids["fixture_id"] = fx.get("id")
+            parts = fx.get("participants") or []
+            if len(parts) >= 2:
+                self.discovered_ids["team_id"] = parts[0].get("id")
+                self.discovered_ids["team_id_a"] = parts[0].get("id")
+                self.discovered_ids["team_id_b"] = parts[1].get("id")
+
+        # Teams fallback
+        if "team_id" not in self.discovered_ids:
+            _, teams_json, _ = self._api_request(f"{self.base_url}/teams", {"per_page": "50"})
+            teams = teams_json.get("data", []) if isinstance(teams_json, dict) else []
+            if teams:
+                self.discovered_ids["team_id"] = teams[0].get("id")
+                if len(teams) >= 2:
+                    self.discovered_ids["team_id_a"] = teams[0].get("id")
+                    self.discovered_ids["team_id_b"] = teams[1].get("id")
+
+        # Players
+        _, players_json, _ = self._api_request(f"{self.base_url}/players", {"per_page": "50"})
+        players = players_json.get("data", []) if isinstance(players_json, dict) else []
+        if players:
+            self.discovered_ids["player_id"] = players[0].get("id")
+
+    # ---------- NEW: template formatter ----------
+    def _format(self, template: str) -> str:
+        """Fill {placeholders} in url_template using discovered_ids + dates."""
+        vals = {
+            **self.discovered_ids,
+            "today": self.discovered_ids.get("today", datetime.utcnow().strftime("%Y-%m-%d")),
+            "tomorrow": self.discovered_ids.get("tomorrow", (datetime.utcnow() + timedelta(days=1)).strftime("%Y-%m-%d")),
+            "from_date": self.discovered_ids.get("from_date", datetime.utcnow().strftime("%Y-%m-%d")),
+            "to_date": self.discovered_ids.get("to_date", datetime.utcnow().strftime("%Y-%m-%d")),
         }
+        try:
+            return template.format(**vals)
+        except KeyError:
+            return template
 
+    # ---------- NEW: param expander ----------
+    def _expand_params(self, params: Optional[Dict]) -> Optional[Dict]:
+        if not params:
+            return None
+        out: Dict[str, Any] = {}
+        for k, v in params.items():
+            if isinstance(v, str):
+                try:
+                    out[k] = v.format(**self.discovered_ids, **{
+                        "today": self.discovered_ids.get("today", ""),
+                        "tomorrow": self.discovered_ids.get("tomorrow", ""),
+                        "from_date": self.discovered_ids.get("from_date", ""),
+                        "to_date": self.discovered_ids.get("to_date", ""),
+                    })
+                except KeyError:
+                    out[k] = v
+            else:
+                out[k] = v
+        return out
 
-# ------------------------------------------------------------------------------
-# OPTIONAL: Example bot skeleton showing EXACT integration you requested.
-# If you already have a bot class, copy the analyze_real_opportunities() method
-# and the four logging lines into your processing pipeline.
-# ------------------------------------------------------------------------------
+    # ---------- NEW: registry runner ----------
+    def run_endpoint_registry(self):
+        """Iterate endpoint registry, call each endpoint, and record what works."""
+        self._discover_seed_ids()
 
-class SportMonksBotSkeleton:
-    """
-    Minimal skeleton to demonstrate integration:
-    - Logs RAW STORE KEYS, PREDICTIONS, and Odds predictions generated
-    - Calls QuickValueBetFinder for real opportunities
-    - Uses RealDataProcessor to clean/structure data if needed elsewhere
-    """
+        for spec in self.endpoint_registry:
+            url = self._format(spec.url_template)
+            params = self._expand_params(spec.params)
 
-    def __init__(self, api_client=None):
-        self.api = api_client
-        self.raw_store: Dict[str, Any] = {}
-        self.predictions: List[Dict[str, Any]] = []
+            status, data, _ = self._api_request(url, params or {"per_page": "25"})
+            data_count = 0
+            sample = {}
+            if status == 200 and isinstance(data, dict):
+                d = data.get("data")
+                if isinstance(d, list):
+                    data_count = len(d)
+                    sample = d[0] if d else {}
+                elif isinstance(d, dict):
+                    data_count = 1
+                    sample = d
+                else:
+                    sample = data
 
-    def analyze_real_opportunities(self) -> int:
-        """
-        Uses QuickValueBetFinder to analyze currently stored raw data and logs results.
-        Returns the count of value bets.
-        """
-        # Get your existing raw data (the way you're currently doing it)
-        raw_data = self.raw_store  # Your existing raw data storage
-
-        # Find real betting opportunities
-        finder = QuickValueBetFinder()
-        opportunities = finder.find_real_betting_opportunities(raw_data)
-
-        value_bets = opportunities["value_bets"]
-        summary = opportunities["summary"]
-
-        logger.info(f"🎯 REAL BETTING ANALYSIS: {summary['summary_text']}")
-
-        if value_bets:
-            logger.info(
-                f"💰 BEST VALUE BET: {value_bets[0]['match']} - {value_bets[0]['bet_type']} "
-                f"@ {value_bets[0]['odds']} ({value_bets[0]['edge_percent']}% edge)"
+            cap = ComponentCapability(
+                component_name=spec.name,
+                endpoint_url=url,
+                category=spec.category,
+                accessible=(status == 200),
+                data_count=data_count,
+                sample_data=sample if isinstance(sample, dict) else {},
+                api_features=(list(sample.keys())[:10] if isinstance(sample, dict) else []),
+                betting_value="high" if spec.category in ("betting", "ai") else "medium",
+                ai_potential=spec.ai_potential
             )
 
-            for bet in value_bets[:3]:  # Top 3
-                logger.info(
-                    f"💡 {bet['match']} | {bet['bet_type']} @ {bet['odds']} "
-                    f"| {bet['edge_percent']}% edge | {bet['recommendation']}"
-                )
+            if cap.accessible:
+                self.inventory.working_components.append(cap)
+                # lightweight counters for key areas
+                if spec.name == "Bookmakers":
+                    self.inventory.bookmakers_count = data_count
+                if spec.name == "Markets":
+                    self.inventory.betting_markets_count = data_count
+                if spec.name.startswith("Pre-match Odds"):
+                    self.inventory.pre_match_odds_count = max(self.inventory.pre_match_odds_count, data_count)
+                if spec.name.startswith("Live Odds"):
+                    self.inventory.live_odds_count = max(self.inventory.live_odds_count, data_count)
+                if spec.name == "Livescores" or spec.name == "Livescores Inplay":
+                    # not perfect but gives a hint
+                    self.inventory.live_matches = max(self.inventory.live_matches, data_count)
+                if spec.name == "Fixture by ID (rich)":
+                    # presence of events/lineups indicates availability
+                    self.inventory.events_timeline_available = True
+                    self.inventory.lineup_data_available = True
+            else:
+                self.inventory.failed_components.append(cap)
+
+    # ---------- original phases below (unchanged) ----------
+    def phase_1_authentication_test(self):
+        """Phase 1: Test API authentication"""
+        self.analysis_progress.update({
+            "phase": "authentication",
+            "current_test": "Testing API authentication...",
+            "progress": 1
+        })
+
+        status, data, error = self._api_request(f"{self.core_url}/my/subscription")
+
+        if status == 200:
+            self.inventory.api_authenticated = True
+            subscription_data = data.get("data", {})
+            self.inventory.subscription_tier = subscription_data.get("tier", "Standard+")
         else:
-            logger.info("📊 No value betting opportunities found today")
+            # Fallback test
+            status, data, error = self._api_request(f"{self.base_url}/livescores")
+            self.inventory.api_authenticated = (status == 200)
 
-        return len(value_bets)
+    def phase_2_core_football_data(self):
+        """Phase 2: Test core football data components"""
+        self.analysis_progress.update({
+            "phase": "core_data",
+            "current_test": "Testing core football data...",
+            "progress": 2
+        })
 
-    def run_after_processing(self) -> None:
-        """
-        Call this after your current data processing steps complete.
-        It prints the three log lines (exact order), then triggers real opportunities.
-        """
+        # Leagues
+        comp = self.test_component("Leagues", f"{self.base_url}/leagues", "core",
+                                   {"per_page": "200"}, "high")
+        if comp.accessible:
+            self.inventory.leagues_available = comp.data_count
+            self.inventory.working_components.append(comp)
+        else:
+            self.inventory.failed_components.append(comp)
 
-        # EXACTLY AS YOU ASKED TO LOG, straight after your processing:
-        logger.info(f"RAW STORE KEYS: {list(self.raw_store.keys())}")
-        logger.info(f"PREDICTIONS: {self.predictions}")
-        logger.info(f"INFO:SportMonksBot:Odds predictions generated: {len(self.predictions)}")
+        # Teams
+        comp = self.test_component("Teams", f"{self.base_url}/teams", "core",
+                                   {"per_page": "200"}, "high")
+        if comp.accessible:
+            self.inventory.teams_available = comp.data_count
+            self.inventory.working_components.append(comp)
+        else:
+            self.inventory.failed_components.append(comp)
 
-        # Call this at the end of your existing process
-        real_opportunities_count = self.analyze_real_opportunities()
-        logger.info(f"INFO:SportMonksBot:Real odds opportunities found: {real_opportunities_count}")
+        # Players
+        comp = self.test_component("Players", f"{self.base_url}/players", "core",
+                                   {"per_page": "200"}, "medium")
+        if comp.accessible:
+            self.inventory.players_available = comp.data_count
+            self.inventory.working_components.append(comp)
+        else:
+            self.inventory.failed_components.append(comp)
+
+        # Fixtures
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        tomorrow = (datetime.utcnow() + timedelta(days=1)).strftime("%Y-%m-%d")
+
+        comp = self.test_component("Today's Fixtures", f"{self.base_url}/fixtures/date/{today}", "core", ai_potential="high")
+        if comp.accessible:
+            self.inventory.fixtures_today = comp.data_count
+            self.inventory.working_components.append(comp)
+
+        comp = self.test_component("Tomorrow's Fixtures", f"{self.base_url}/fixtures/date/{tomorrow}", "core", ai_potential="high")
+        if comp.accessible:
+            self.inventory.fixtures_tomorrow = comp.data_count
+            self.inventory.working_components.append(comp)
+
+        # Live Scores
+        comp = self.test_component("Live Scores", f"{self.base_url}/livescores", "core", ai_potential="high")
+        if comp.accessible:
+            self.inventory.live_matches = comp.data_count
+            self.inventory.working_components.append(comp)
+
+    def phase_3_odds_and_predictions(self):
+        """Phase 3: Test odds and prediction components"""
+        self.analysis_progress.update({
+            "phase": "odds_predictions",
+            "current_test": "Testing odds and prediction components...",
+            "progress": 3
+        })
+
+        # Bookmakers
+        comp = self.test_component("Bookmakers", f"{self.odds_url}/bookmakers", "betting", ai_potential="high")
+        if comp.accessible:
+            self.inventory.bookmakers_count = comp.data_count
+            self.inventory.working_components.append(comp)
+            self.inventory.high_value_components.append("Bookmakers Data")
+
+        # Markets
+        comp = self.test_component("Betting Markets", f"{self.odds_url}/markets", "betting", ai_potential="high")
+        if comp.accessible:
+            self.inventory.betting_markets_count = comp.data_count
+            self.inventory.working_components.append(comp)
+            self.inventory.high_value_components.append("Betting Markets")
+
+        # Pre-match Odds
+        comp = self.test_component("Pre-match Odds", f"{self.odds_url}/pre-match", "betting",
+                                   {"per_page": "100"}, "high")
+        if comp.accessible:
+            self.inventory.pre_match_odds_count = comp.data_count
+            self.inventory.working_components.append(comp)
+            self.inventory.high_value_components.append("Pre-match Odds")
+
+        # Live Odds
+        comp = self.test_component("Live Odds", f"{self.odds_url}/inplay", "betting",
+                                   {"per_page": "100"}, "high")
+        if comp.accessible:
+            self.inventory.live_odds_count = comp.data_count
+            self.inventory.working_components.append(comp)
+            self.inventory.high_value_components.append("Live Odds")
+
+        # Predictions
+        comp = self.test_component("AI Predictions", f"{self.base_url}/predictions", "ai", ai_potential="high")
+        if comp.accessible:
+            self.inventory.predictions_available = True
+            self.inventory.working_components.append(comp)
+            self.inventory.ai_ready_features.append("AI Match Predictions")
+
+    def phase_4_advanced_analytics(self):
+        """Phase 4: Test advanced analytics components"""
+        self.analysis_progress.update({
+            "phase": "advanced_analytics",
+            "current_test": "Testing advanced analytics (xG, Pressure Index)...",
+            "progress": 4
+        })
+
+        # Expected Goals (xG) - Match level
+        comp = self.test_component("Expected Goals (xG)", f"{self.base_url}/fixtures", "analytics",
+                                   {"include": "xg", "per_page": "25"}, "high")
+        if comp.accessible:
+            self.inventory.xg_match_data_available = True
+            self.inventory.working_components.append(comp)
+            self.inventory.ai_ready_features.append("Expected Goals (xG) Analysis")
+
+        # Player xG Efficiency (if available through player stats)
+        comp = self.test_component("Player xG Efficiency", f"{self.base_url}/players", "analytics",
+                                   {"include": "statistics", "per_page": "25"}, "high")
+        if comp.accessible:
+            self.inventory.xg_player_efficiency_available = True
+            self.inventory.working_components.append(comp)
+            self.inventory.ai_ready_features.append("Player xG Efficiency")
+
+        # Pressure Index (usually in fixture statistics)
+        comp = self.test_component("Pressure Index", f"{self.base_url}/fixtures", "analytics",
+                                   {"include": "pressureIndex", "per_page": "25"}, "high")
+        if comp.accessible:
+            self.inventory.pressure_index_available = True
+            self.inventory.working_components.append(comp)
+            self.inventory.ai_ready_features.append("Pressure Index Analytics")
+
+        # Trends
+        comp = self.test_component("Team Trends", f"{self.base_url}/teams", "analytics",
+                                   {"include": "trends", "per_page": "25"}, "high")
+        if comp.accessible:
+            self.inventory.trends_available = True
+            self.inventory.working_components.append(comp)
+            self.inventory.ai_ready_features.append("Team Performance Trends")
+
+    def phase_5_statistics_components(self):
+        """Phase 5: Test statistics and analysis components"""
+        self.analysis_progress.update({
+            "phase": "statistics",
+            "current_test": "Testing statistics and analysis components...",
+            "progress": 5
+        })
+
+        # Head2Head
+        comp = self.test_component("Head to Head", f"{self.base_url}/head2head", "statistics", ai_potential="high")
+        if comp.accessible:
+            self.inventory.head2head_available = True
+            self.inventory.working_components.append(comp)
+            self.inventory.ai_ready_features.append("Head-to-Head Analysis")
+
+        # Team Statistics
+        comp = self.test_component("Team Statistics", f"{self.base_url}/teams", "statistics",
+                                   {"include": "statistics", "per_page": "25"}, "high")
+        if comp.accessible:
+            self.inventory.team_statistics_available = True
+            self.inventory.working_components.append(comp)
+            self.inventory.ai_ready_features.append("Detailed Team Statistics")
+
+        # Player Profiles
+        comp = self.test_component("Player Profiles", f"{self.base_url}/players", "statistics",
+                                   {"include": "detailedStatistics", "per_page": "25"}, "medium")
+        if comp.accessible:
+            self.inventory.player_profiles_available = True
+            self.inventory.working_components.append(comp)
+
+        # Topscorers
+        comp = self.test_component("Topscorers", f"{self.base_url}/topscorers", "statistics", ai_potential="medium")
+        if comp.accessible:
+            self.inventory.topscorers_available = True
+            self.inventory.working_components.append(comp)
+
+        # Standings
+        comp = self.test_component("Standings", f"{self.base_url}/standings", "statistics", ai_potential="high")
+        if comp.accessible:
+            self.inventory.working_components.append(comp)
+            self.inventory.ai_ready_features.append("League Standings Analysis")
+
+    def phase_6_realtime_features(self):
+        """Phase 6: Test real-time features"""
+        self.analysis_progress.update({
+            "phase": "realtime",
+            "current_test": "Testing real-time features...",
+            "progress": 6
+        })
+
+        # Live Standings
+        comp = self.test_component("Live Standings", f"{self.base_url}/standings/live", "realtime", ai_potential="medium")
+        if comp.accessible:
+            self.inventory.live_standings_available = True
+            self.inventory.working_components.append(comp)
+
+        # Events Timeline
+        comp = self.test_component("Events Timeline", f"{self.base_url}/fixtures", "realtime",
+                                   {"include": "events", "per_page": "25"}, "high")
+        if comp.accessible:
+            self.inventory.events_timeline_available = True
+            self.inventory.working_components.append(comp)
+            self.inventory.ai_ready_features.append("Match Events Timeline")
+
+        # Lineups
+        comp = self.test_component("Lineups", f"{self.base_url}/fixtures", "realtime",
+                                   {"include": "lineups", "per_page": "25"}, "medium")
+        if comp.accessible:
+            self.inventory.lineup_data_available = True
+            self.inventory.working_components.append(comp)
+
+        # Commentary
+        comp = self.test_component("Live Commentary", f"{self.base_url}/commentaries", "realtime", ai_potential="low")
+        if comp.accessible:
+            self.inventory.live_commentary_available = True
+            self.inventory.working_components.append(comp)
+
+    def phase_7_supplementary_data(self):
+        """Phase 7: Test supplementary data components"""
+        self.analysis_progress.update({
+            "phase": "supplementary",
+            "current_test": "Testing supplementary data...",
+            "progress": 7
+        })
+
+        # Injuries & Suspensions
+        comp = self.test_component("Injuries & Suspensions", f"{self.base_url}/injuries", "supplementary", ai_potential="medium")
+        if comp.accessible:
+            self.inventory.injuries_suspensions_available = True
+            self.inventory.working_components.append(comp)
+
+        # Referee Statistics
+        comp = self.test_component("Referee Statistics", f"{self.base_url}/referees", "supplementary",
+                                   {"include": "statistics"}, "medium")
+        if comp.accessible:
+            self.inventory.referee_stats_available = True
+            self.inventory.working_components.append(comp)
+
+        # TV Stations
+        comp = self.test_component("TV Stations", f"{self.base_url}/tv-stations", "supplementary", ai_potential="low")
+        if comp.accessible:
+            self.inventory.tv_stations_available = True
+            self.inventory.working_components.append(comp)
+
+        # News (if available)
+        comp = self.test_component("News", f"{self.base_url}/news", "supplementary", ai_potential="low")
+        if comp.accessible:
+            self.inventory.news_available = True
+            self.inventory.working_components.append(comp)
+
+    def phase_8_calculate_readiness_score(self):
+        """Phase 8: Calculate AI betting bot readiness score"""
+        self.analysis_progress.update({
+            "phase": "scoring",
+            "current_test": "Calculating AI bot readiness...",
+            "progress": 8
+        })
+
+        score = 0.0
+
+        # Core data (30% of score)
+        if self.inventory.leagues_available > 0:
+            score += 5
+        if self.inventory.teams_available > 0:
+            score += 5
+        if self.inventory.fixtures_today > 0:
+            score += 10
+        if self.inventory.live_matches >= 0:
+            score += 10  # Even 0 is good, means endpoint works
+
+        # Odds data (25% of score)
+        if self.inventory.bookmakers_count > 0:
+            score += 8
+        if self.inventory.betting_markets_count > 0:
+            score += 7
+        if self.inventory.pre_match_odds_count > 0:
+            score += 10
+
+        # Advanced analytics (25% of score)
+        if self.inventory.xg_match_data_available:
+            score += 8
+        if self.inventory.pressure_index_available:
+            score += 7
+        if self.inventory.trends_available:
+            score += 5
+        if self.inventory.predictions_available:
+            score += 5
+
+        # Statistics (20% of score)
+        if self.inventory.head2head_available:
+            score += 5
+        if self.inventory.team_statistics_available:
+            score += 5
+        if self.inventory.events_timeline_available:
+            score += 5
+        if self.inventory.player_profiles_available:
+            score += 5
+
+        self.inventory.bot_readiness_score = min(score, 100.0)
+
+    def phase_9_generate_strategies(self):
+        """Phase 9: Generate recommended betting strategies"""
+        self.analysis_progress.update({
+            "phase": "strategies",
+            "current_test": "Generating betting strategies...",
+            "progress": 9
+        })
+
+        # Value betting strategies
+        if self.inventory.pre_match_odds_count > 0:
+            self.inventory.recommended_strategies.append("Pre-match Value Betting Analysis")
+
+        if self.inventory.live_odds_count > 0:
+            self.inventory.recommended_strategies.append("Live Betting Opportunity Detection")
+
+        # xG-based strategies
+        if self.inventory.xg_match_data_available:
+            self.inventory.recommended_strategies.append("Expected Goals (xG) Based Predictions")
+            self.inventory.recommended_strategies.append("Over/Under Goals Market Analysis")
+
+        # Form and trends
+        if self.inventory.trends_available and self.inventory.head2head_available:
+            self.inventory.recommended_strategies.append("Team Form & H2H Trend Analysis")
+
+        # Live betting
+        if self.inventory.pressure_index_available and self.inventory.events_timeline_available:
+            self.inventory.recommended_strategies.append("In-Play Momentum & Pressure Analysis")
+
+        # Comprehensive analysis
+        if len(self.inventory.ai_ready_features) >= 5:
+            self.inventory.recommended_strategies.append("Multi-Factor AI Prediction Model")
+
+    def phase_10_advanced_features_assessment(self):
+        """Phase 10: Assess advanced features for AI bot"""
+        self.analysis_progress.update({
+            "phase": "advanced_assessment",
+            "current_test": "Assessing advanced AI capabilities...",
+            "progress": 10
+        })
+
+        advanced_features: List[str] = []
+
+        if self.inventory.xg_match_data_available:
+            advanced_features.append("Expected Goals (xG) - Goal probability modeling")
+
+        if self.inventory.pressure_index_available:
+            advanced_features.append("Pressure Index - Match momentum tracking")
+
+        if self.inventory.predictions_available:
+            advanced_features.append("AI Predictions - Machine learning outcomes")
+
+        if self.inventory.trends_available:
+            advanced_features.append("Performance Trends - Historical pattern analysis")
+
+        if self.inventory.events_timeline_available:
+            advanced_features.append("Live Events - Real-time match analysis")
+
+        if self.inventory.head2head_available:
+            advanced_features.append("Head-to-Head - Historical matchup analysis")
+
+        if self.inventory.team_statistics_available:
+            advanced_features.append("Team Statistics - Performance metrics")
+
+        if self.inventory.injuries_suspensions_available:
+            advanced_features.append("Team News - Player availability impact")
+
+        self.inventory.advanced_features_available = advanced_features
+
+    def phase_11_final_component_summary(self):
+        """Phase 11: Generate final component summary"""
+        self.analysis_progress.update({
+            "phase": "summary",
+            "current_test": "Generating component summary...",
+            "progress": 11
+        })
+
+        self.inventory.total_components_enabled = len(self.inventory.working_components)
+
+        # Categorize high-value components for betting
+        high_value_betting: List[str] = []
+        for comp in self.inventory.working_components:
+            if comp.betting_value == "high" or comp.ai_potential == "high":
+                high_value_betting.append(comp.component_name)
+
+        self.inventory.high_value_components = high_value_betting
+
+    def phase_12_complete_analysis(self):
+        """Phase 12: Complete analysis"""
+        self.analysis_progress.update({
+            "phase": "completed",
+            "current_test": "Analysis complete!",
+            "progress": 12
+        })
+
+    def run_complete_analysis(self):
+        """Run comprehensive analysis of all components"""
+        self.is_analyzing = True
+
+        try:
+            self.phase_1_authentication_test()
+            time.sleep(0.5)
+            self.phase_2_core_football_data()
+            time.sleep(0.5)
+            self.phase_3_odds_and_predictions()
+            time.sleep(0.5)
+
+            # NEW: endpoint sweep inserted here
+            self.analysis_progress.update({
+                "phase": "endpoint_sweep",
+                "current_test": "Scanning endpoint registry...",
+                "progress": 3.5
+            })
+            self.run_endpoint_registry()
+            time.sleep(0.5)
+
+            self.phase_4_advanced_analytics()
+            time.sleep(0.5)
+            self.phase_5_statistics_components()
+            time.sleep(0.5)
+            self.phase_6_realtime_features()
+            time.sleep(0.5)
+            self.phase_7_supplementary_data()
+            time.sleep(0.5)
+            self.phase_8_calculate_readiness_score()
+            time.sleep(0.5)
+            self.phase_9_generate_strategies()
+            time.sleep(0.5)
+            self.phase_10_advanced_features_assessment()
+            time.sleep(0.5)
+            self.phase_11_final_component_summary()
+            time.sleep(0.5)
+            self.phase_12_complete_analysis()
+
+        except Exception as e:
+            self.analysis_progress.update({
+                "phase": "error",
+                "current_test": f"Error: {str(e)[:200]}",
+                "progress": 0
+            })
+        finally:
+            self.is_analyzing = False
+
+    def get_comprehensive_report(self) -> str:
+        """Generate comprehensive copyable report"""
+        report = f"""
+=== COMPREHENSIVE SPORTMONKS SUBSCRIPTION ANALYSIS ===
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+🔐 AUTHENTICATION & SUBSCRIPTION
+✅ API Authenticated: {self.inventory.api_authenticated}
+📊 Subscription Tier: {self.inventory.subscription_tier}
+🎯 Total Components Working: {self.inventory.total_components_enabled}
+📈 AI Bot Readiness Score: {self.inventory.bot_readiness_score:.1f}/100
+
+🏈 CORE FOOTBALL DATA
+🏆 Leagues Available: {self.inventory.leagues_available}
+👥 Teams Available: {self.inventory.teams_available}
+👤 Players Available: {self.inventory.players_available}
+📅 Today’s Fixtures: {self.inventory.fixtures_today}
+📅 Tomorrow’s Fixtures: {self.inventory.fixtures_tomorrow}
+🔴 Live Matches: {self.inventory.live_matches}
+
+💰 ODDS & BETTING COMPONENTS
+📚 Bookmakers: {self.inventory.bookmakers_count}
+🎯 Betting Markets: {self.inventory.betting_markets_count}
+📊 Pre-match Odds: {self.inventory.pre_match_odds_count}
+⚡ Live Odds: {self.inventory.live_odds_count}
+🤖 AI Predictions: {"✅ Available" if self.inventory.predictions_available else "❌ Not Available"}
+
+📊 ADVANCED ANALYTICS
+⚽ Expected Goals (xG): {"✅ Available" if self.inventory.xg_match_data_available else "❌ Not Available"}
+👤 Player xG Efficiency: {"✅ Available" if self.inventory.xg_player_efficiency_available else "❌ Not Available"}
+📈 Pressure Index: {"✅ Available" if self.inventory.pressure_index_available else "❌ Not Available"}
+📉 Performance Trends: {"✅ Available" if self.inventory.trends_available else "❌ Not Available"}
+
+📈 STATISTICS & ANALYSIS
+🆚 Head-to-Head: {"✅ Available" if self.inventory.head2head_available else "❌ Not Available"}
+👥 Team Statistics: {"✅ Available" if self.inventory.team_statistics_available else "❌ Not Available"}
+👤 Player Profiles: {"✅ Available" if self.inventory.player_profiles_available else "❌ Not Available"}
+🏆 Topscorers: {"✅ Available" if self.inventory.topscorers_available else "❌ Not Available"}
+
+⚡ REAL-TIME FEATURES
+📊 Live Standings: {"✅ Available" if self.inventory.live_standings_available else "❌ Not Available"}
+📝 Live Commentary: {"✅ Available" if self.inventory.live_commentary_available else "❌ Not Available"}
+⚽ Events Timeline: {"✅ Available" if self.inventory.events_timeline_available else "❌ Not Available"}
+👥 Lineup Data: {"✅ Available" if self.inventory.lineup_data_available else "❌ Not Available"}
+
+🔧 SUPPLEMENTARY DATA
+🏥 Injuries & Suspensions: {"✅ Available" if self.inventory.injuries_suspensions_available else "❌ Not Available"}
+👨‍⚖️ Referee Statistics: {"✅ Available" if self.inventory.referee_stats_available else "❌ Not Available"}
+📺 TV Stations: {"✅ Available" if self.inventory.tv_stations_available else "❌ Not Available"}
+📰 News: {"✅ Available" if self.inventory.news_available else "❌ Not Available"}
+
+🚀 HIGH-VALUE COMPONENTS FOR AI BETTING BOT:
+{chr(10).join([f"   ✅ {comp}" for comp in self.inventory.high_value_components])}
+
+🤖 AI-READY FEATURES:
+{chr(10).join([f"   🎯 {feature}" for feature in self.inventory.ai_ready_features])}
+
+💡 RECOMMENDED BETTING STRATEGIES:
+{chr(10).join([f"   🎲 {strategy}" for strategy in self.inventory.recommended_strategies])}
+"""
+        return report.strip()
 
 
-# If you want to test this file standalone, uncomment below.
-# if __name__ == "__main__":
-#     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s:%(name)s:%(message)s")
-#     bot = SportMonksBotSkeleton()
-#     # Populate bot.raw_store and bot.predictions here as needed...
-#     bot.run_after_processing()
+# -----------------------------
+# Flask Application + HTML UI
+# -----------------------------
+
+app = Flask(__name__)
+application = app  # for Gunicorn
+
+
+HTML_TEMPLATE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>SportMonks Subscription Analyzer</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: #10b981; text-align: center; margin-bottom: 30px; }
+        .card { background: #1e293b; border: 1px solid #334155; padding: 25px; margin: 20px 0; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .btn { background: #3b82f6; color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; transition: all 0.3s; }
+        .btn:hover { background: #2563eb; transform: translateY(-1px); }
+        .btn:disabled { background: #64748b; cursor: not-allowed; }
+        input { background: #0f172a; color: #e2e8f0; border: 2px solid #475569; padding: 12px; width: 400px; border-radius: 8px; font-size: 16px; }
+        input:focus { border-color: #3b82f6; outline: none; }
+        .progress { width: 100%; height: 12px; background: #334155; border-radius: 6px; overflow: hidden; margin: 15px 0; }
+        .progress-bar { height: 100%; background: linear-gradient(90deg, #10b981, #059669); width: 0%; transition: width 0.5s ease; }
+        .status { margin-top: 15px; color: #94a3b8; font-size: 14px; }
+        .phase { color: #3b82f6; font-weight: bold; }
+        .results { background: #0f172a; padding: 20px; border-radius: 8px; margin-top: 20px; }
+        .metric { display: inline-block; margin: 10px 15px; padding: 10px; background: #1e293b; border-radius: 6px; }
+        .metric-value { font-size: 24px; font-weight: bold; color: #10b981; }
+        .metric-label { font-size: 12px; color: #94a3b8; }
+        .report-section { margin: 20px 0; }
+        .report-text { background: #0f172a; padding: 15px; border-radius: 6px; font-family: monospace; font-size: 12px; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
+        .copy-btn { background: #059669; margin-top: 10px; }
+        .copy-btn:hover { background: #047857; }
+        .readiness-ready { color: #10b981; font-weight: bold; }
+        .readiness-partial { color: #f59e0b; font-weight: bold; }
+        .readiness-not { color: #ef4444; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 SportMonks Subscription Analyzer</h1>
+        <p style="text-align: center; color: #94a3b8; margin-bottom: 30px;">
+            Discover your subscription capabilities, analyze betting data access, and get AI bot recommendations
+        </p>
+
+        <div class="card">
+            <h3>🚀 Start Analysis</h3>
+            <input id="apiToken" type="text" placeholder="Enter your SportMonks API Token...">
+            <br><br>
+            <button class="btn" id="analyzeBtn" onclick="startAnalysis()">Analyze Subscription</button>
+            <div class="progress">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <div class="status">
+                <span class="phase" id="phase">Ready</span> - <span id="currentTest">Enter your API token to begin</span>
+            </div>
+        </div>
+
+        <div class="card" id="resultsCard" style="display: none;">
+            <h3>📊 Analysis Results</h3>
+            <div id="quickMetrics"></div>
+            <div id="readinessStatus"></div>
+        </div>
+
+        <div class="card" id="reportCard" style="display: none;">
+            <h3>📋 Complete Analysis Report</h3>
+            <button class="btn copy-btn" onclick="copyReport()">📋 Copy Full Report</button>
+            <div class="report-section">
+                <div class="report-text" id="fullReport"></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+let pollTimer = null;
+let fullReportData = "";
+
+async function startAnalysis() {
+    const token = document.getElementById('apiToken').value.trim();
+    if (!token) { alert('Please enter your SportMonks API token'); return; }
+
+    const btn = document.getElementById('analyzeBtn');
+    btn.disabled = true;
+    btn.textContent = 'Analyzing...';
+
+    try {
+        const response = await fetch('/api/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_token: token })
+        });
+        if (response.ok) startPolling();
+        else { throw new Error('Failed to start analysis'); }
+    } catch (err) {
+        alert('Error: ' + err.message);
+        btn.disabled = false;
+        btn.textContent = 'Analyze Subscription';
+    }
+}
+
+function startPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(async () => {
+        try {
+            const response = await fetch('/api/progress');
+            const data = await response.json();
+            const percent = (data.progress / 12) * 100;
+            document.getElementById('progressBar').style.width = percent + '%';
+            document.getElementById('phase').textContent = data.phase.toUpperCase();
+            document.getElementById('currentTest').textContent = data.current_test;
+
+            if (data.phase === 'completed') {
+                clearInterval(pollTimer);
+                loadResults();
+            } else if (data.phase === 'error') {
+                clearInterval(pollTimer);
+                alert('Analysis failed: ' + data.current_test);
+                resetUI();
+            }
+        } catch (err) {
+            console.error('Polling error:', err);
+        }
+    }, 1000);
+}
+
+async function loadResults() {
+    try {
+        const response = await fetch('/api/results');
+        const data = await response.json();
+        displayResults(data);
+        resetUI();
+    } catch (err) {
+        alert('Error loading results');
+        resetUI();
+    }
+}
+
+function displayResults(data) {
+    const inv = data.inventory;
+    const metrics = `
+        <div class="metric"><div class="metric-value">${inv.leagues_available}</div><div class="metric-label">Leagues</div></div>
+        <div class="metric"><div class="metric-value">${inv.fixtures_today}</div><div class="metric-label">Today's Matches</div></div>
+        <div class="metric"><div class="metric-value">${inv.live_matches}</div><div class="metric-label">Live Matches</div></div>
+        <div class="metric"><div class="metric-value">${inv.pre_match_odds_count}</div><div class="metric-label">Pre-match Odds</div></div>
+        <div class="metric"><div class="metric-value">${inv.live_odds_count}</div><div class="metric-label">Live Odds</div></div>
+        <div class="metric"><div class="metric-value">${Number(inv.bot_readiness_score).toFixed(1)}</div><div class="metric-label">Readiness Score</div></div>
+    `;
+    document.getElementById('quickMetrics').innerHTML = metrics;
+
+    let readinessClass = 'readiness-not';
+    if (inv.bot_readiness_score >= 70) readinessClass = 'readiness-ready';
+    else if (inv.bot_readiness_score >= 40) readinessClass = 'readiness-partial';
+
+    document.getElementById('readinessStatus').innerHTML = `<p class="${readinessClass}">Readiness: ${Number(inv.bot_readiness_score).toFixed(1)}/100</p>`;
+    document.getElementById('resultsCard').style.display = 'block';
+
+    fullReportData = data.report || '';
+    document.getElementById('fullReport').textContent = fullReportData;
+    document.getElementById('reportCard').style.display = 'block';
+}
+
+function copyReport() {
+    if (!fullReportData) return;
+    navigator.clipboard.writeText(fullReportData);
+    alert('Report copied to clipboard!');
+}
+
+function resetUI() {
+    const btn = document.getElementById('analyzeBtn');
+    btn.disabled = false;
+    btn.textContent = 'Analyze Subscription';
+}
+</script>
+</body>
+</html>
+"""
+
+
+# -----------------------------
+# Routes
+# -----------------------------
+
+analyzer: Optional[ComprehensiveSubscriptionAnalyzer] = None
+
+
+@app.route("/", methods=["GET"])
+def home():
+    return HTML_TEMPLATE
+
+
+@app.route("/api/analyze", methods=["POST"])
+def api_analyze():
+    global analyzer
+    data = request.get_json(silent=True) or {}
+    api_token = (data.get("api_token") or "").strip()
+    if not api_token:
+        return jsonify({"error": "API token required"}), 400
+
+    if analyzer and analyzer.is_analyzing:
+        return jsonify({"error": "Analysis already running"}), 400
+
+    analyzer = ComprehensiveSubscriptionAnalyzer(api_token)
+
+    t = threading.Thread(target=analyzer.run_complete_analysis, daemon=True)
+    t.start()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/progress", methods=["GET"])
+def api_progress():
+    if not analyzer:
+        return jsonify({"phase": "idle", "current_test": "Waiting to start", "progress": 0})
+    return jsonify(analyzer.analysis_progress)
+
+
+@app.route("/api/results", methods=["GET"])
+def api_results():
+    if not analyzer:
+        return jsonify({"error": "No analyzer"}), 400
+    if analyzer.analysis_progress.get("phase") != "completed":
+        return jsonify({"error": "Analysis not complete"}), 400
+
+    return jsonify({
+        "inventory": analyzer.inventory.__dict__,
+        "report": analyzer.get_comprehensive_report()
+    })
+
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat()
+    })
+
+
+# -----------------------------
+# Gunicorn / Dev entrypoints
+# -----------------------------
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", "8080"))
+    debug = os.environ.get("DEBUG", "false").lower() == "true"
+    logger.info(f"Starting analyzer on port {port}")
+    app.run(host="0.0.0.0", port=port, debug=debug, threaded=True)
