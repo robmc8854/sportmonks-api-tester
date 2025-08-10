@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 """
-COMPLETE WORKING BETTING BOT - SYNTAX FIXED
-Full production-ready AI betting bot with value bet detection
+DEBUG SPORTMONKS DATA FETCHER
+Shows exactly what data is being received from your subscription
 """
 
 import json
 import logging
 import os
-from datetime import datetime, date, timedelta
-from typing import Dict, List, Optional
-
+from datetime import datetime, timedelta
+from typing import Dict, Optional
 import requests
 from flask import Flask, jsonify, request
 
@@ -19,582 +16,266 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class QuickValueBetFinder:
-    def __init__(self):
-        self.today = date.today()
-        self.sample_fixture_ids = {19135003, 19427455}
-
-    def find_real_betting_opportunities(self, raw_store_data: Dict) -> Dict:
-        real_fixtures = self.extract_real_fixtures(raw_store_data)
-        odds_data = self.extract_odds_data(raw_store_data)
-        value_bets = self.generate_value_bets(real_fixtures, odds_data)
-
-        summary = {
-            "total_fixtures": len(real_fixtures),
-            "total_odds_available": len(odds_data),
-            "value_bets_found": len(value_bets),
-            "best_opportunities": value_bets[:5],
-            "summary_text": f"Found {len(value_bets)} value betting opportunities from {len(real_fixtures)} upcoming fixtures",
-        }
-
-        logger.info(f"QuickValueBetFinder: {summary['summary_text']}")
-
-        return {
-            "status": "success",
-            "real_fixtures": real_fixtures,
-            "value_bets": value_bets,
-            "summary": summary,
-        }
-
-    def extract_real_fixtures(self, raw_data: Dict) -> List[Dict]:
-        real_fixtures: List[Dict] = []
-
-        for key, data in raw_data.items():
-            if key.startswith("upcoming_") and isinstance(data, dict):
-                if "data" in data and isinstance(data["data"], list):
-                    for fixture in data["data"]:
-                        if fixture.get("id") in self.sample_fixture_ids:
-                            continue
-
-                        status = fixture.get("state", {}).get("short_name", "NS")
-                        if status in ["NS", "TBD"]:
-                            fixture_info = {
-                                "id": fixture.get("id"),
-                                "home_team": "Unknown",
-                                "away_team": "Unknown",
-                                "league": "Unknown",
-                                "kickoff": None,
-                                "status": status,
-                            }
-
-                            participants = fixture.get("participants", [])
-                            if isinstance(participants, list) and len(participants) >= 2:
-                                fixture_info["home_team"] = participants[0].get("name", "Unknown")
-                                fixture_info["away_team"] = participants[1].get("name", "Unknown")
-
-                            if "league" in fixture and isinstance(fixture["league"], dict):
-                                fixture_info["league"] = fixture["league"].get("name", "Unknown")
-
-                            if "starting_at" in fixture:
-                                fixture_info["kickoff"] = fixture["starting_at"]
-
-                            real_fixtures.append(fixture_info)
-
-        return real_fixtures
-
-    def extract_odds_data(self, raw_data: Dict) -> List[Dict]:
-        odds_list: List[Dict] = []
-
-        for key, data in raw_data.items():
-            if "odds" in key and isinstance(data, dict):
-                if "data" in data and isinstance(data["data"], list):
-                    for odds_item in data["data"]:
-                        if odds_item.get("fixture_id") in self.sample_fixture_ids:
-                            continue
-
-                        odds_info = {
-                            "fixture_id": odds_item.get("fixture_id"),
-                            "market_id": odds_item.get("market_id"),
-                            "bookmaker": (odds_item.get("bookmaker") or {}).get("name", "Unknown"),
-                            "selections": [],
-                        }
-
-                        if "selections" in odds_item and isinstance(odds_item["selections"], list):
-                            for selection in odds_item["selections"]:
-                                try:
-                                    odds_val = float(selection.get("odds", 0))
-                                except (ValueError, TypeError):
-                                    odds_val = 0.0
-                                odds_info["selections"].append(
-                                    {
-                                        "name": selection.get("name", ""),
-                                        "odds": odds_val,
-                                    }
-                                )
-
-                        if odds_info["selections"]:
-                            odds_list.append(odds_info)
-
-        return odds_list
-
-    def generate_value_bets(self, fixtures: List[Dict], odds_data: List[Dict]) -> List[Dict]:
-        value_bets: List[Dict] = []
-
-        odds_by_fixture: Dict[int, List[Dict]] = {}
-        for odds in odds_data:
-            fixture_id = odds.get("fixture_id")
-            if fixture_id is None:
-                continue
-            odds_by_fixture.setdefault(fixture_id, []).append(odds)
-
-        for fixture in fixtures:
-            fixture_id = fixture.get("id")
-            if fixture_id not in odds_by_fixture:
-                continue
-
-            prediction = self.simple_prediction_model(fixture)
-            fixture_odds = odds_by_fixture[fixture_id]
-            fixture_value_bets = self.find_fixture_value_bets(fixture, prediction, fixture_odds)
-
-            value_bets.extend(fixture_value_bets)
-
-        value_bets.sort(key=lambda x: x.get("edge_percent", 0), reverse=True)
-        return value_bets
-
-    def simple_prediction_model(self, fixture: Dict) -> Dict:
-        # Placeholder model; replace with your own probabilities
-        return {
-            "home_win_prob": 0.42,
-            "draw_prob": 0.28,
-            "away_win_prob": 0.30,
-            "over_2_5_prob": 0.58,
-            "under_2_5_prob": 0.42,
-            "btts_yes_prob": 0.55,
-            "btts_no_prob": 0.45,
-        }
-
-    def find_fixture_value_bets(self, fixture: Dict, prediction: Dict, fixture_odds: List[Dict]) -> List[Dict]:
-        value_bets: List[Dict] = []
-
-        for odds_entry in fixture_odds:
-            market_id = odds_entry.get("market_id")
-
-            if market_id == 1:
-                bets = self.process_1x2_odds(fixture, prediction, odds_entry)
-                value_bets.extend(bets)
-            elif market_id == 5:
-                bets = self.process_ou_odds(fixture, prediction, odds_entry)
-                value_bets.extend(bets)
-            elif market_id == 14:
-                bets = self.process_btts_odds(fixture, prediction, odds_entry)
-                value_bets.extend(bets)
-
-        return value_bets
-
-    def process_1x2_odds(self, fixture: Dict, prediction: Dict, odds_entry: Dict) -> List[Dict]:
-        value_bets: List[Dict] = []
-
-        bet_mappings = {
-            "home": "home_win_prob",
-            "1": "home_win_prob",
-            "draw": "draw_prob",
-            "x": "draw_prob",
-            "away": "away_win_prob",
-            "2": "away_win_prob",
-        }
-
-        for selection in odds_entry.get("selections", []):
-            selection_name = str(selection.get("name", "")).lower()
-            odds_value = selection.get("odds", 0)
-
-            try:
-                odds_value = float(odds_value)
-            except (ValueError, TypeError):
-                continue
-
-            if odds_value <= 1.0:
-                continue
-
-            prob_key = None
-            for name_pattern, prob_k in bet_mappings.items():
-                if name_pattern in selection_name:
-                    prob_key = prob_k
-                    break
-
-            if prob_key:
-                predicted_prob = float(prediction.get(prob_key, 0))
-                implied_prob = 1.0 / odds_value if odds_value else 0.0
-                edge = predicted_prob - implied_prob
-
-                if edge > 0.04:
-                    value_bets.append(
-                        {
-                            "fixture_id": fixture["id"],
-                            "match": f"{fixture['home_team']} vs {fixture['away_team']}",
-                            "league": fixture["league"],
-                            "kickoff": fixture["kickoff"],
-                            "market": "1X2",
-                            "bet_type": selection.get("name", ""),
-                            "odds": odds_value,
-                            "predicted_prob": predicted_prob,
-                            "implied_prob": implied_prob,
-                            "edge": edge,
-                            "edge_percent": round(edge * 100, 1),
-                            "bookmaker": odds_entry.get("bookmaker", "Unknown"),
-                            "recommendation": self.get_recommendation(edge),
-                        }
-                    )
-
-        return value_bets
-
-    def process_ou_odds(self, fixture: Dict, prediction: Dict, odds_entry: Dict) -> List[Dict]:
-        value_bets: List[Dict] = []
-
-        for selection in odds_entry.get("selections", []):
-            selection_name = str(selection.get("name", "")).lower()
-            odds_value = selection.get("odds", 0)
-            try:
-                odds_value = float(odds_value)
-            except (ValueError, TypeError):
-                continue
-
-            if odds_value <= 1.0:
-                continue
-
-            if "over" in selection_name:
-                predicted_prob = float(prediction.get("over_2_5_prob", 0))
-                bet_type = "Over 2.5"
-            elif "under" in selection_name:
-                predicted_prob = float(prediction.get("under_2_5_prob", 0))
-                bet_type = "Under 2.5"
-            else:
-                continue
-
-            implied_prob = 1.0 / odds_value if odds_value else 0.0
-            edge = predicted_prob - implied_prob
-
-            if edge > 0.04:
-                value_bets.append(
-                    {
-                        "fixture_id": fixture["id"],
-                        "match": f"{fixture['home_team']} vs {fixture['away_team']}",
-                        "league": fixture["league"],
-                        "kickoff": fixture["kickoff"],
-                        "market": "Over/Under 2.5",
-                        "bet_type": bet_type,
-                        "odds": odds_value,
-                        "predicted_prob": predicted_prob,
-                        "implied_prob": implied_prob,
-                        "edge": edge,
-                        "edge_percent": round(edge * 100, 1),
-                        "bookmaker": odds_entry.get("bookmaker", "Unknown"),
-                        "recommendation": self.get_recommendation(edge),
-                    }
-                )
-
-        return value_bets
-
-    def process_btts_odds(self, fixture: Dict, prediction: Dict, odds_entry: Dict) -> List[Dict]:
-        value_bets: List[Dict] = []
-
-        for selection in odds_entry.get("selections", []):
-            selection_name = str(selection.get("name", "")).lower()
-            odds_value = selection.get("odds", 0)
-            try:
-                odds_value = float(odds_value)
-            except (ValueError, TypeError):
-                continue
-
-            if odds_value <= 1.0:
-                continue
-
-            if "yes" in selection_name or "both" in selection_name:
-                predicted_prob = float(prediction.get("btts_yes_prob", 0))
-                bet_type = "BTTS Yes"
-            elif "no" in selection_name:
-                predicted_prob = float(prediction.get("btts_no_prob", 0))
-                bet_type = "BTTS No"
-            else:
-                continue
-
-            implied_prob = 1.0 / odds_value if odds_value else 0.0
-            edge = predicted_prob - implied_prob
-
-            if edge > 0.04:
-                value_bets.append(
-                    {
-                        "fixture_id": fixture["id"],
-                        "match": f"{fixture['home_team']} vs {fixture['away_team']}",
-                        "league": fixture["league"],
-                        "kickoff": fixture["kickoff"],
-                        "market": "Both Teams to Score",
-                        "bet_type": bet_type,
-                        "odds": odds_value,
-                        "predicted_prob": predicted_prob,
-                        "implied_prob": implied_prob,
-                        "edge": edge,
-                        "edge_percent": round(edge * 100, 1),
-                        "bookmaker": odds_entry.get("bookmaker", "Unknown"),
-                        "recommendation": self.get_recommendation(edge),
-                    }
-                )
-
-        return value_bets
-
-    def get_recommendation(self, edge: float) -> str:
-        if edge > 0.15:
-            return "STRONG BUY"
-        elif edge > 0.10:
-            return "BUY"
-        elif edge > 0.06:
-            return "CONSIDER"
-        else:
-            return "WEAK VALUE"
-
-
-class BettingBot:
+class SportMonksDebugger:
     def __init__(self, api_token: str):
         self.api_token = api_token
         self.base_url = "https://api.sportmonks.com/v3/football"
         self.odds_url = "https://api.sportmonks.com/v3/odds"
+        self.core_url = "https://api.sportmonks.com/v3/core"
 
         self.session = requests.Session()
-        self.session.headers.update(
-            {
-                "Authorization": f"Bearer {api_token}",
-                "Accept": "application/json",
-            }
-        )
+        self.session.headers.update({
+            "Authorization": f"Bearer {api_token}",
+            "Accept": "application/json",
+            "User-Agent": "SportMonks-Debug/1.0"
+        })
 
-        self.value_finder = QuickValueBetFinder()
-        self.raw_data: Dict[str, Dict] = {}
-        self.last_analysis: Optional[Dict] = None
+        self.debug_log = []
+        self.raw_responses = {}
 
-    def _request(self, url: str, params: Optional[Dict] = None) -> Optional[Dict]:
+    def log_debug(self, message: str):
+        """Add debug message with timestamp"""
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        log_entry = f"[{timestamp}] {message}"
+        self.debug_log.append(log_entry)
+        logger.info(log_entry)
+
+    def make_request(self, endpoint_name: str, url: str, params: Dict = None) -> Dict:
+        """Make API request with detailed logging"""
+        self.log_debug(f"🌐 Making request to: {endpoint_name}")
+        self.log_debug(f"📍 URL: {url}")
+
         try:
             request_params = {"api_token": self.api_token}
             if params:
                 request_params.update(params)
+                self.log_debug(f"📋 Params: {params}")
 
             response = self.session.get(url, params=request_params, timeout=30)
 
+            self.log_debug(f"📊 Status Code: {response.status_code}")
+
             if response.status_code == 200:
-                return response.json()
+                try:
+                    data = response.json()
+                    self.raw_responses[endpoint_name] = data
+
+                    if isinstance(data, dict):
+                        if 'data' in data:
+                            items = data['data']
+                            if isinstance(items, list):
+                                self.log_debug(f"✅ Success: {len(items)} items received")
+                                if items:
+                                    sample = items[0]
+                                    self.log_debug(f"📝 Sample keys: {list(sample.keys())[:10]}")
+                                    if 'name' in sample:
+                                        self.log_debug(f"🏷️ Sample name: {sample.get('name')}")
+                                    if 'id' in sample:
+                                        self.log_debug(f"🆔 Sample ID: {sample.get('id')}")
+                            else:
+                                self.log_debug("✅ Success: Single item received")
+                        else:
+                            self.log_debug(f"✅ Success: Keys: {list(data.keys())}")
+                    return data
+
+                except json.JSONDecodeError:
+                    self.log_debug("❌ Failed to parse JSON")
+                    return {}
             else:
-                logger.error(f"API request failed: {response.status_code} - {url}")
-                return None
+                self.log_debug(f"❌ Failed with status {response.status_code}")
+                self.log_debug(f"💬 Response: {response.text[:200]}")
+                return {}
 
         except Exception as e:
-            logger.error(f"API request error: {e}")
-            return None
+            self.log_debug(f"🚨 Exception: {str(e)}")
+            return {}
 
-    def fetch_data(self):
-        logger.info("Fetching SportMonks data...")
+    def test_subscription_access(self):
+        """Test what your subscription can actually access"""
+        self.log_debug("🔍 TESTING SPORTMONKS SUBSCRIPTION ACCESS")
+        self.log_debug("=" * 50)
 
-        today = datetime.now().strftime("%Y-%m-%d")
-        tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        today = datetime.now().strftime('%Y-%m-%d')
+        tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
 
-        # Upcoming fixtures
-        today_data = self._request(f"{self.base_url}/fixtures/date/{today}", {"include": "participants,league"})
-        if today_data:
-            self.raw_data[f"upcoming_{today}"] = today_data
+        tests = [
+            ("subscription", f"{self.core_url}/my/subscription"),
+            ("leagues", f"{self.base_url}/leagues", {"per_page": "50"}),
+            ("todays_fixtures", f"{self.base_url}/fixtures/date/{today}", {"include": "participants,league"}),
+            ("tomorrows_fixtures", f"{self.base_url}/fixtures/date/{tomorrow}", {"include": "participants,league"}),
+            ("live_scores", f"{self.base_url}/livescores"),
+            ("teams", f"{self.base_url}/teams", {"per_page": "25"}),
+            ("players", f"{self.base_url}/players", {"per_page": "25"}),
+            ("bookmakers", f"{self.odds_url}/bookmakers"),
+            ("markets", f"{self.odds_url}/markets"),
+            ("pre_match_odds", f"{self.odds_url}/pre-match", {"per_page": "50"}),
+            ("live_odds", f"{self.odds_url}/inplay", {"per_page": "50"}),
+            ("standings", f"{self.base_url}/standings", {"per_page": "25"}),
+        ]
 
-        tomorrow_data = self._request(f"{self.base_url}/fixtures/date/{tomorrow}", {"include": "participants,league"})
-        if tomorrow_data:
-            self.raw_data[f"upcoming_{tomorrow}"] = tomorrow_data
+        for name, url, *opt in tests:
+            self.make_request(name, url, *(opt or [{}]))
 
-        # Live scores
-        live_data = self._request(f"{self.base_url}/livescores")
-        if live_data:
-            self.raw_data["live_scores"] = live_data
+        self.log_debug("=" * 50)
+        self.log_debug("🎯 SUBSCRIPTION ANALYSIS COMPLETE")
+        return self.generate_subscription_summary()
 
-        # Bookmakers
-        bookmakers_data = self._request(f"{self.odds_url}/bookmakers")
-        if bookmakers_data:
-            self.raw_data["bookmakers"] = bookmakers_data
+    def generate_subscription_summary(self):
+        """Generate comprehensive summary of what's available"""
+        summary = {
+            'total_endpoints_tested': len(self.raw_responses),
+            'successful_endpoints': 0,
+            'failed_endpoints': 0,
+            'available_data': {},
+            'subscription_details': {},
+            'debug_log': self.debug_log,
+            'raw_data_sample': {}
+        }
 
-        # Pre-match odds
-        odds_data = self._request(f"{self.odds_url}/pre-match", {"per_page": "100"})
-        if odds_data:
-            self.raw_data["pre_match_odds"] = odds_data
+        for endpoint, data in self.raw_responses.items():
+            if data and isinstance(data, dict):
+                summary['successful_endpoints'] += 1
+                if 'data' in data:
+                    items = data['data']
+                    if isinstance(items, list):
+                        summary['available_data'][endpoint] = {
+                            'status': 'success',
+                            'count': len(items),
+                            'sample': items[0] if items else None
+                        }
+                    else:
+                        summary['available_data'][endpoint] = {
+                            'status': 'success',
+                            'count': 1,
+                            'sample': items
+                        }
+                else:
+                    summary['available_data'][endpoint] = {
+                        'status': 'success',
+                        'count': 0,
+                        'sample': data
+                    }
+                summary['raw_data_sample'][endpoint] = str(data)[:500] + "..." if len(str(data)) > 500 else str(data)
+            else:
+                summary['failed_endpoints'] += 1
+                summary['available_data'][endpoint] = {
+                    'status': 'failed',
+                    'count': 0,
+                    'sample': None
+                }
 
-        logger.info(f"Fetched data for {len(self.raw_data)} endpoints")
+        if 'subscription' in self.raw_responses:
+            sub_data = self.raw_responses['subscription']
+            if isinstance(sub_data, dict) and 'data' in sub_data:
+                summary['subscription_details'] = sub_data['data']
 
-    def analyze_opportunities(self):
-        logger.info("Analyzing betting opportunities...")
+        return summary
 
-        if not self.raw_data:
-            self.fetch_data()
+    def find_available_fixtures_with_odds(self):
+        """Find fixtures that have odds available"""
+        self.log_debug("🔍 SEARCHING FOR FIXTURES WITH AVAILABLE ODDS")
 
-        self.last_analysis = self.value_finder.find_real_betting_opportunities(self.raw_data)
+        available_opportunities = []
+        fixture_ids = []
 
-        summary = self.last_analysis["summary"]
-        value_bets = self.last_analysis["value_bets"]
+        for endpoint in ['todays_fixtures', 'tomorrows_fixtures']:
+            if endpoint in self.raw_responses:
+                data = self.raw_responses[endpoint]
+                if isinstance(data, dict) and 'data' in data:
+                    for fixture in data['data']:
+                        if isinstance(fixture, dict) and 'id' in fixture:
+                            info = {
+                                'id': fixture['id'],
+                                'home_team': 'Unknown',
+                                'away_team': 'Unknown',
+                                'league': 'Unknown',
+                                'kickoff': fixture.get('starting_at', 'Unknown')
+                            }
+                            participants = fixture.get('participants', [])
+                            if len(participants) >= 2:
+                                info['home_team'] = participants[0].get('name', 'Unknown')
+                                info['away_team'] = participants[1].get('name', 'Unknown')
+                            if 'league' in fixture:
+                                info['league'] = fixture['league'].get('name', 'Unknown')
+                            fixture_ids.append(info)
 
-        logger.info(f"ANALYSIS COMPLETE: {summary['summary_text']}")
+        self.log_debug(f"📊 Found {len(fixture_ids)} total fixtures")
 
-        if value_bets:
-            top = value_bets[0]
-            logger.info(
-                f"BEST VALUE BET: {top['match']} - {top['bet_type']} @ {top['odds']} ({top['edge_percent']}% edge)"
-            )
-            for bet in value_bets[:3]:
-                logger.info(
-                    f"VALUE BET: {bet['match']} | {bet['bet_type']} @ {bet['odds']} | {bet['edge_percent']}% edge | {bet['recommendation']}"
-                )
-        else:
-            logger.info("No value betting opportunities found")
+        odds_available = 0
+        if 'pre_match_odds' in self.raw_responses:
+            odds_data = self.raw_responses['pre_match_odds']
+            if isinstance(odds_data, dict) and 'data' in odds_data:
+                odds_fixture_ids = {odds_item['fixture_id'] for odds_item in odds_data['data'] if isinstance(odds_item, dict) and 'fixture_id' in odds_item}
+                self.log_debug(f"💰 Found odds for {len(odds_fixture_ids)} fixtures")
 
-        return self.last_analysis
+                for fixture in fixture_ids:
+                    if fixture['id'] in odds_fixture_ids:
+                        available_opportunities.append(fixture)
+                        odds_available += 1
 
-    def get_dashboard_data(self):
-        if not self.last_analysis:
-            self.analyze_opportunities()
+        self.log_debug(f"🎯 RESULT: {odds_available} fixtures have odds available")
 
         return {
-            "status": "active",
-            "last_update": datetime.now().isoformat(),
-            "summary": self.last_analysis["summary"],
-            "value_bets": self.last_analysis["value_bets"][:10],
-            "total_opportunities": len(self.last_analysis["value_bets"]),
+            'total_fixtures': len(fixture_ids),
+            'fixtures_with_odds': odds_available,
+            'opportunities': available_opportunities[:10],
+            'all_fixtures': fixture_ids[:20]
         }
 
 
 # Flask App
 app = Flask(__name__)
-bot: Optional[BettingBot] = None
+debugger: Optional[SportMonksDebugger] = None
 
 
-@app.route("/")
-def home():
-    return """
-<!DOCTYPE html>
-<html>
-<head>
-<title>AI Betting Bot</title>
-<style>
-body { font-family: Arial, sans-serif; background: #0f172a; color: #f1f5f9; padding: 20px; }
-.container { max-width: 1200px; margin: 0 auto; }
-h1 { color: #10b981; text-align: center; }
-.card { background: #1e293b; padding: 20px; margin: 20px 0; border-radius: 8px; }
-.btn { background: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
-.btn:hover { background: #2563eb; }
-input { background: #374151; color: white; border: 1px solid #4b5563; padding: 10px; width: 300px; border-radius: 4px; }
-.bet-card { background: #065f46; padding: 15px; margin: 10px 0; border-radius: 6px; border-left: 4px solid #10b981; }
-.edge { color: #10b981; font-weight: bold; }
-</style>
-</head>
-<body>
-<div class="container">
-<h1>🤖 AI Betting Bot</h1>
-    <div class="card">
-        <h3>Setup</h3>
-        <input id="apiToken" type="text" placeholder="Enter SportMonks API Token...">
-        <button class="btn" onclick="setupBot()">Initialize Bot</button>
-    </div>
-
-    <div class="card">
-        <h3>Controls</h3>
-        <button class="btn" onclick="analyzeOpportunities()">Analyze Opportunities</button>
-        <button class="btn" onclick="refreshDashboard()">Refresh Dashboard</button>
-    </div>
-
-    <div class="card">
-        <h3>Value Betting Opportunities</h3>
-        <div id="opportunities">Click "Analyze Opportunities" to find value bets</div>
-    </div>
-</div>
-
-<script>
-async function setupBot() {
-    const token = document.getElementById('apiToken').value;
-    if (!token) { alert('Enter API token'); return; }
-
-    try {
-        const response = await fetch('/api/setup', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ api_token: token })
-        });
-        const data = await response.json();
-        alert(data.success ? 'Bot initialized!' : 'Error: ' + (data.error || 'unknown'));
-    } catch (error) {
-        alert('Error: ' + error.message);
-    }
-}
-
-async function analyzeOpportunities() {
-    try {
-        const response = await fetch('/api/analyze', { method: 'POST' });
-        const data = await response.json();
-        if (data.success) {
-            refreshDashboard();
-        } else {
-            alert('Error: ' + (data.error || 'unknown'));
-        }
-    } catch (error) {
-        alert('Error: ' + error.message);
-    }
-}
-
-async function refreshDashboard() {
-    try {
-        const response = await fetch('/api/dashboard');
-        const data = await response.json();
-        displayOpportunities(data);
-    } catch (error) {
-        document.getElementById('opportunities').innerHTML = 'Error loading data';
-    }
-}
-
-function displayOpportunities(data) {
-    const container = document.getElementById('opportunities');
-
-    if (!data.value_bets || data.value_bets.length === 0) {
-        container.innerHTML = '<p>No value betting opportunities found</p>';
-        return;
-    }
-
-    let html = `<p><strong>Found ${data.total_opportunities} value betting opportunities!</strong></p>`;
-
-    data.value_bets.forEach(bet => {
-        html += `
-            <div class="bet-card">
-                <strong>${bet.match}</strong> (${bet.league})<br>
-                <strong>${bet.bet_type}</strong> @ ${bet.odds}
-                <span class="edge">${bet.edge_percent}% edge</span><br>
-                Bookmaker: ${bet.bookmaker} | ${bet.recommendation}
-            </div>
-        `;
-    });
-
-    container.innerHTML = html;
-}
-</script>
-</body>
-</html>
-"""
-
-
-@app.route("/api/setup", methods=["POST"])
-def setup():
-    global bot
-    data = request.get_json(silent=True) or {}
+@app.route("/api/init", methods=["POST"])
+def init_debugger():
+    global debugger
+    data = request.get_json()
     api_token = data.get("api_token")
-
     if not api_token:
         return jsonify({"error": "API token required"}), 400
-
     try:
-        bot = BettingBot(api_token)
+        debugger = SportMonksDebugger(api_token)
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/analyze", methods=["POST"])
-def analyze():
-    global bot
-    if not bot:
-        return jsonify({"error": "Bot not initialized"}), 400
-
+@app.route("/api/test-subscription", methods=["POST"])
+def test_subscription():
+    if not debugger:
+        return jsonify({"error": "Debugger not initialized"}), 400
     try:
-        bot.analyze_opportunities()
-        return jsonify({"success": True})
+        summary = debugger.test_subscription_access()
+        return jsonify({"success": True, "summary": summary})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/dashboard")
-def dashboard():
-    global bot
-    if not bot:
-        return jsonify({"error": "Bot not initialized"}), 400
-
+@app.route("/api/find-opportunities", methods=["POST"])
+def find_opportunities():
+    if not debugger:
+        return jsonify({"error": "Debugger not initialized"}), 400
     try:
-        return jsonify(bot.get_dashboard_data())
+        opportunities = debugger.find_available_fixtures_with_odds()
+        return jsonify({"success": True, "opportunities": opportunities})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/debug-log")
+def get_debug_log():
+    if not debugger:
+        return jsonify({"log": ["Debugger not initialized"]})
+    return jsonify({"log": debugger.debug_log})
+
+
+@app.route("/api/raw-data")
+def get_raw_data():
+    if not debugger:
+        return jsonify({"error": "Debugger not initialized"})
+    return jsonify(debugger.raw_responses)
 
 
 @app.route("/health")
@@ -606,5 +287,5 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
 
-# Gunicorn compatibility
+# Gunicorn entrypoint
 application = app
