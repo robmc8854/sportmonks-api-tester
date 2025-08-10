@@ -1,3 +1,5 @@
+Here you go — full corrected script with the JSON-safe serializers and a cleaned param formatter (so you won’t hit the str.format() duplicate-key error). Logic and flow are unchanged.
+
 #!/usr/bin/env python3
 """
 COMPLETE SPORTMONKS SUBSCRIPTION ANALYZER - ALL COMPONENTS MAPPED
@@ -101,7 +103,7 @@ class ComprehensiveInventory:
     advanced_features_available: List[str] = field(default_factory=list)
 
 
-# -------- NEW: endpoint registry spec --------
+# -------- Endpoint registry spec --------
 @dataclass
 class EndpointSpec:
     name: str
@@ -136,11 +138,11 @@ class ComprehensiveSubscriptionAnalyzer:
         }
         self.is_analyzing = False
 
-        # NEW: discovered IDs + endpoint registry
+        # Discovered IDs + endpoint registry
         self.discovered_ids: Dict[str, Any] = {}
         self.endpoint_registry: List[EndpointSpec] = self._build_endpoint_registry()
 
-    # ---------- NEW: robust request w/ gentle retry ----------
+    # ---------- Robust request w/ gentle retry ----------
     def _api_request(self, url: str, params: Dict = None) -> Tuple[int, Dict, str]:
         """Enhanced API request with comprehensive logging"""
         try:
@@ -175,7 +177,7 @@ class ComprehensiveSubscriptionAnalyzer:
             self.analysis_progress["errors"].append(error_msg)
             return 0, {}, error_msg
 
-    # ---------- existing component tester (unchanged) ----------
+    # ---------- Component tester ----------
     def test_component(
         self,
         component_name: str,
@@ -217,7 +219,7 @@ class ComprehensiveSubscriptionAnalyzer:
             ai_potential=ai_potential
         )
 
-    # ---------- NEW: endpoint registry builder ----------
+    # ---------- Endpoint registry builder ----------
     def _build_endpoint_registry(self) -> List[EndpointSpec]:
         b, o = self.base_url, self.odds_url
         return [
@@ -265,7 +267,7 @@ class ComprehensiveSubscriptionAnalyzer:
             EndpointSpec("TV Stations", f"{b}/tv-stations", "supplementary", {"per_page": "200"}),
         ]
 
-    # ---------- NEW: seed ID discovery ----------
+    # ---------- Seed ID discovery ----------
     def _discover_seed_ids(self) -> None:
         """Populate self.discovered_ids with a small, real set of IDs for later endpoint tests."""
         self.discovered_ids = {}
@@ -328,42 +330,44 @@ class ComprehensiveSubscriptionAnalyzer:
         if players:
             self.discovered_ids["player_id"] = players[0].get("id")
 
-    # ---------- NEW: template formatter ----------
+    # ---------- Template formatter ----------
     def _format(self, template: str) -> str:
         """Fill {placeholders} in url_template using discovered_ids + dates."""
-        vals = {
-            **self.discovered_ids,
-            "today": self.discovered_ids.get("today", datetime.utcnow().strftime("%Y-%m-%d")),
-            "tomorrow": self.discovered_ids.get("tomorrow", (datetime.utcnow() + timedelta(days=1)).strftime("%Y-%m-%d")),
-            "from_date": self.discovered_ids.get("from_date", datetime.utcnow().strftime("%Y-%m-%d")),
-            "to_date": self.discovered_ids.get("to_date", datetime.utcnow().strftime("%Y-%m-%d")),
-        }
+        vals = dict(self.discovered_ids)  # copy discovered values
+        # Ensure date keys exist if missing
+        vals.setdefault("today", datetime.utcnow().strftime("%Y-%m-%d"))
+        vals.setdefault("tomorrow", (datetime.utcnow() + timedelta(days=1)).strftime("%Y-%m-%d"))
+        vals.setdefault("from_date", datetime.utcnow().strftime("%Y-%m-%d"))
+        vals.setdefault("to_date", datetime.utcnow().strftime("%Y-%m-%d"))
         try:
             return template.format(**vals)
         except KeyError:
             return template
 
-    # ---------- NEW: param expander ----------
+    # ---------- Param expander (fixed to avoid duplicate keys) ----------
     def _expand_params(self, params: Optional[Dict]) -> Optional[Dict]:
         if not params:
             return None
         out: Dict[str, Any] = {}
+
+        # Build a single dict of format values (no duplicates)
+        vals = dict(self.discovered_ids)
+        vals.setdefault("today", datetime.utcnow().strftime("%Y-%m-%d"))
+        vals.setdefault("tomorrow", (datetime.utcnow() + timedelta(days=1)).strftime("%Y-%m-%d"))
+        vals.setdefault("from_date", datetime.utcnow().strftime("%Y-%m-%d"))
+        vals.setdefault("to_date", datetime.utcnow().strftime("%Y-%m-%d"))
+
         for k, v in params.items():
             if isinstance(v, str):
                 try:
-                    out[k] = v.format(**self.discovered_ids, **{
-                        "today": self.discovered_ids.get("today", ""),
-                        "tomorrow": self.discovered_ids.get("tomorrow", ""),
-                        "from_date": self.discovered_ids.get("from_date", ""),
-                        "to_date": self.discovered_ids.get("to_date", ""),
-                    })
+                    out[k] = v.format(**vals)
                 except KeyError:
                     out[k] = v
             else:
                 out[k] = v
         return out
 
-    # ---------- NEW: registry runner ----------
+    # ---------- Registry runner ----------
     def run_endpoint_registry(self):
         """Iterate endpoint registry, call each endpoint, and record what works."""
         self._discover_seed_ids()
@@ -409,17 +413,15 @@ class ComprehensiveSubscriptionAnalyzer:
                     self.inventory.pre_match_odds_count = max(self.inventory.pre_match_odds_count, data_count)
                 if spec.name.startswith("Live Odds"):
                     self.inventory.live_odds_count = max(self.inventory.live_odds_count, data_count)
-                if spec.name == "Livescores" or spec.name == "Livescores Inplay":
-                    # not perfect but gives a hint
+                if spec.name in ("Livescores", "Livescores Inplay"):
                     self.inventory.live_matches = max(self.inventory.live_matches, data_count)
                 if spec.name == "Fixture by ID (rich)":
-                    # presence of events/lineups indicates availability
                     self.inventory.events_timeline_available = True
                     self.inventory.lineup_data_available = True
             else:
                 self.inventory.failed_components.append(cap)
 
-    # ---------- original phases below (unchanged) ----------
+    # ---------- Original phases ----------
     def phase_1_authentication_test(self):
         """Phase 1: Test API authentication"""
         self.analysis_progress.update({
@@ -845,7 +847,7 @@ class ComprehensiveSubscriptionAnalyzer:
             self.phase_3_odds_and_predictions()
             time.sleep(0.5)
 
-            # NEW: endpoint sweep inserted here
+            # Endpoint sweep inserted here
             self.analysis_progress.update({
                 "phase": "endpoint_sweep",
                 "current_test": "Scanning endpoint registry...",
@@ -942,6 +944,74 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 {chr(10).join([f"   🎲 {strategy}" for strategy in self.inventory.recommended_strategies])}
 """
         return report.strip()
+
+
+# -----------------------------
+# JSON serializers (added)
+# -----------------------------
+def _component_to_dict(c: ComponentCapability) -> Dict[str, Any]:
+    return {
+        "component_name": c.component_name,
+        "endpoint_url": c.endpoint_url,
+        "category": c.category,
+        "accessible": c.accessible,
+        "data_count": c.data_count,
+        "sample_data": c.sample_data,
+        "api_features": c.api_features,
+        "betting_value": c.betting_value,
+        "ai_potential": c.ai_potential,
+    }
+
+def _inventory_to_dict(inv: ComprehensiveInventory) -> Dict[str, Any]:
+    out = {
+        "subscription_tier": inv.subscription_tier,
+        "api_authenticated": inv.api_authenticated,
+        "total_components_enabled": inv.total_components_enabled,
+
+        "leagues_available": inv.leagues_available,
+        "teams_available": inv.teams_available,
+        "players_available": inv.players_available,
+        "fixtures_today": inv.fixtures_today,
+        "fixtures_tomorrow": inv.fixtures_tomorrow,
+        "live_matches": inv.live_matches,
+
+        "bookmakers_count": inv.bookmakers_count,
+        "betting_markets_count": inv.betting_markets_count,
+        "pre_match_odds_count": inv.pre_match_odds_count,
+        "live_odds_count": inv.live_odds_count,
+        "predictions_available": inv.predictions_available,
+
+        "xg_match_data_available": inv.xg_match_data_available,
+        "xg_player_efficiency_available": inv.xg_player_efficiency_available,
+        "pressure_index_available": inv.pressure_index_available,
+        "trends_available": inv.trends_available,
+
+        "match_centre_available": inv.match_centre_available,
+        "player_profiles_available": inv.player_profiles_available,
+        "team_statistics_available": inv.team_statistics_available,
+        "head2head_available": inv.head2head_available,
+        "topscorers_available": inv.topscorers_available,
+
+        "live_standings_available": inv.live_standings_available,
+        "live_commentary_available": inv.live_commentary_available,
+        "events_timeline_available": inv.events_timeline_available,
+        "lineup_data_available": inv.lineup_data_available,
+
+        "injuries_suspensions_available": inv.injuries_suspensions_available,
+        "referee_stats_available": inv.referee_stats_available,
+        "tv_stations_available": inv.tv_stations_available,
+        "news_available": inv.news_available,
+
+        "high_value_components": inv.high_value_components,
+        "ai_ready_features": inv.ai_ready_features,
+
+        "bot_readiness_score": float(inv.bot_readiness_score),
+        "recommended_strategies": inv.recommended_strategies,
+        "advanced_features_available": inv.advanced_features_available,
+    }
+    out["working_components"] = [_component_to_dict(c) for c in inv.working_components]
+    out["failed_components"] = [_component_to_dict(c) for c in inv.failed_components]
+    return out
 
 
 # -----------------------------
@@ -1170,7 +1240,7 @@ def api_results():
         return jsonify({"error": "Analysis not complete"}), 400
 
     return jsonify({
-        "inventory": analyzer.inventory.__dict__,
+        "inventory": _inventory_to_dict(analyzer.inventory),
         "report": analyzer.get_comprehensive_report()
     })
 
