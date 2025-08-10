@@ -1,3 +1,5 @@
+Here you go — full script fixed (proper quotes, __init__, indentation, and no duplicate Flask app creation). Copy–paste ready:
+
 #!/usr/bin/env python3
 """
 WORKING SPORTMONKS BETTING PREDICTOR - USING REAL AVAILABLE DATA
@@ -16,6 +18,9 @@ from flask import Flask, jsonify, request
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Flask App (create exactly once)
+app = Flask(__name__)
 
 
 class RealDataPredictor:
@@ -95,13 +100,11 @@ class RealDataPredictor:
                 team = team_data["data"][0]
                 fixtures = team.get("fixtures", [])
 
-                # Sort by date and get recent finished matches
                 recent_fixtures: List[Dict] = []
                 for fixture in fixtures:
                     if fixture.get("state_id") == 5:  # Finished matches
                         recent_fixtures.append(fixture)
 
-                # Sort by starting_at date (most recent first)
                 recent_fixtures.sort(key=lambda x: x.get("starting_at", ""), reverse=True)
                 return recent_fixtures[:limit]
 
@@ -132,28 +135,24 @@ class RealDataPredictor:
         wins = draws = losses = goals_for = goals_against = 0
         form_string = ""
 
-        # Get scores for each fixture
         for fixture in recent_fixtures[:5]:  # Last 5 games
             try:
                 fixture_id = fixture["id"]
 
-                # Get scores using working endpoint
                 scores_data = self.make_request("fixtures", {
                     "per_page": "1",
                     "include": "scores",
                     "filters": f"fixtures:{fixture_id}"
                 })
 
-                if not scores_data.get("data") or len(scores_data["data"]) == 0:
+                if not scores_data.get("data"):
                     continue
 
                 fixture_with_scores = scores_data["data"][0]
                 scores = fixture_with_scores.get("scores", [])
-
                 if not scores:
                     continue
 
-                # Find current score
                 home_score = away_score = 0
                 for score in scores:
                     if score.get("description") == "CURRENT":
@@ -161,16 +160,13 @@ class RealDataPredictor:
                         away_score = score.get("score", {}).get("away", 0) or 0
                         break
 
-                # Get participants to determine if team was home or away
                 participants = fixture_with_scores.get("participants", [])
                 is_home = False
-
                 for participant in participants:
                     if participant.get("id") == team_id:
                         is_home = participant.get("meta", {}).get("location") == "home"
                         break
 
-                # Calculate result from team's perspective
                 if is_home:
                     team_score = home_score
                     opponent_score = away_score
@@ -196,14 +192,7 @@ class RealDataPredictor:
                 continue
 
         games_played = wins + draws + losses
-
-        # Calculate form rating (0-1 scale)
-        if games_played > 0:
-            points = (wins * 3) + draws
-            max_points = games_played * 3
-            form_rating = points / max_points
-        else:
-            form_rating = 0.5
+        form_rating = (wins * 3 + draws) / (games_played * 3) if games_played > 0 else 0.5
 
         return {
             "team_id": team_id,
@@ -215,7 +204,7 @@ class RealDataPredictor:
             "goals_for": goals_for,
             "goals_against": goals_against,
             "form_rating": round(form_rating, 3),
-            "form_string": form_string[:5],  # Last 5 games
+            "form_string": form_string[:5],
             "avg_goals_for": round(goals_for / games_played, 2) if games_played > 0 else 0,
             "avg_goals_against": round(goals_against / games_played, 2) if games_played > 0 else 0
         }
@@ -231,9 +220,9 @@ class RealDataPredictor:
             if standings_data.get("data"):
                 for standing in standings_data["data"]:
                     if standing.get("participant_id") == team_id:
-                        return standing.get("position", 10)  # Default to mid-table
+                        return standing.get("position", 10)
 
-            return 10  # Default position
+            return 10
 
         except Exception as e:
             logger.error(f"Error getting league position for {team_id}: {str(e)}")
@@ -248,18 +237,13 @@ class RealDataPredictor:
                 "filters": f"fixtures:{fixture_id}"
             })
 
-            if odds_data.get("data") and len(odds_data["data"]) > 0:
+            if odds_data.get("data"):
                 fixture_with_odds = odds_data["data"][0]
                 odds = fixture_with_odds.get("odds", [])
-
                 if odds:
-                    # Find 1x2 market odds
                     for odd in odds:
                         if odd.get("market_description") == "1X2" or odd.get("name") == "Match Result":
-                            return {
-                                "has_odds": True,
-                                "odds_data": odd
-                            }
+                            return {"has_odds": True, "odds_data": odd}
 
             return {"has_odds": False}
 
@@ -276,39 +260,31 @@ class RealDataPredictor:
         odds_data: Dict
     ) -> Dict:
         """Generate match prediction using all available data"""
-
-        # Base prediction on form ratings
         home_rating = home_team_form["form_rating"]
         away_rating = away_team_form["form_rating"]
 
-        # Adjust for league positions (lower position = better team)
         position_factor = 0.1
-        home_position_adj = (20 - home_position) / 20 * position_factor  # Normalize to 0-0.1
+        home_position_adj = (20 - home_position) / 20 * position_factor
         away_position_adj = (20 - away_position) / 20 * position_factor
 
-        # Home advantage
         home_advantage = 0.15
 
-        # Calculate adjusted strengths
         home_strength = min(home_rating + home_position_adj + home_advantage, 1.0)
         away_strength = min(away_rating + away_position_adj, 1.0)
 
-        # Convert to probabilities
         total_strength = home_strength + away_strength
         if total_strength > 0:
-            home_win_prob = (home_strength / total_strength) * 65  # 65% distributed between teams
+            home_win_prob = (home_strength / total_strength) * 65
             away_win_prob = (away_strength / total_strength) * 65
-            draw_prob = 35  # 35% base draw probability
+            draw_prob = 35
         else:
             home_win_prob = away_win_prob = draw_prob = 33.33
 
-        # Normalize to 100%
         total_prob = home_win_prob + away_win_prob + draw_prob
         home_win_prob = (home_win_prob / total_prob) * 100
         away_win_prob = (away_win_prob / total_prob) * 100
         draw_prob = (draw_prob / total_prob) * 100
 
-        # Determine prediction
         if home_win_prob > away_win_prob and home_win_prob > draw_prob:
             prediction = "HOME_WIN"
             confidence = home_win_prob
@@ -319,16 +295,14 @@ class RealDataPredictor:
             prediction = "DRAW"
             confidence = draw_prob
 
-        # Score prediction
         home_goals = home_team_form["avg_goals_for"]
         away_goals = away_team_form["avg_goals_for"]
         home_conceded = home_team_form["avg_goals_against"]
         away_conceded = away_team_form["avg_goals_against"]
 
-        predicted_home_goals = round((home_goals + away_conceded) / 2 * 1.1)  # Home boost
+        predicted_home_goals = round((home_goals + away_conceded) / 2 * 1.1)
         predicted_away_goals = round((away_goals + home_conceded) / 2)
 
-        # Value bet analysis if odds available (placeholder)
         value_bet = None
         if odds_data.get("has_odds"):
             value_bet = "Check odds manually for value"
@@ -353,9 +327,7 @@ class RealDataPredictor:
         print("🎯 GENERATING BETTING PREDICTIONS")
         print("=" * 50)
 
-        # Get tomorrow's fixtures with participants
         fixtures = self.get_tomorrows_fixtures_with_participants()
-
         if not fixtures:
             print("❌ No fixtures found for tomorrow")
             return []
@@ -373,7 +345,6 @@ class RealDataPredictor:
                     print(f"⚠️ Skipping fixture {fixture_id} - insufficient participants")
                     continue
 
-                # Extract teams
                 home_team = away_team = None
                 for participant in participants:
                     if participant.get("meta", {}).get("location") == "home":
@@ -392,7 +363,6 @@ class RealDataPredictor:
 
                 print(f"🔍 Analyzing: {home_name} vs {away_name}")
 
-                # Get team data
                 home_fixtures = self.get_team_recent_fixtures(home_id)
                 away_fixtures = self.get_team_recent_fixtures(away_id)
 
@@ -404,10 +374,10 @@ class RealDataPredictor:
 
                 odds_data = self.get_odds_data(fixture_id)
 
-                # Generate prediction
-                prediction = self.predict_match(home_form, away_form, home_position, away_position, odds_data)
+                prediction = self.predict_match(
+                    home_form, away_form, home_position, away_position, odds_data
+                )
 
-                # Compile full prediction
                 full_prediction = {
                     "fixture_id": fixture_id,
                     "home_team": home_name,
@@ -428,16 +398,9 @@ class RealDataPredictor:
                 print(f"❌ Error processing fixture {fixture.get('id')}: {str(e)}")
                 continue
 
-        # Sort by confidence
         predictions.sort(key=lambda x: x["confidence"], reverse=True)
-
         print(f"🎯 Generated {len(predictions)} predictions")
         return predictions
-
-
-# Flask App
-app = Flask(__name__)
-predictor: Optional[RealDataPredictor] = None
 
 
 @app.route("/")
@@ -567,7 +530,6 @@ function displayPredictions(predictions) {
     predictions.forEach(pred => {
         const confidenceClass = pred.confidence >= 60 ? 'high-confidence' : pred.confidence >= 45 ? 'medium-confidence' : 'low-confidence';
         
-        // Generate form badges
         const homeFormBadges = generateFormBadges(pred.home_form.form_string);
         const awayFormBadges = generateFormBadges(pred.away_form.form_string);
         
@@ -575,54 +537,27 @@ function displayPredictions(predictions) {
             <div class="prediction ${confidenceClass}">
                 <h3>${pred.home_team} vs ${pred.away_team}</h3>
                 <div class="stats">
-                    <div class="stat">
-                        <strong>Prediction</strong><br>
-                        ${pred.prediction.replace('_', ' ')}
-                    </div>
-                    <div class="stat">
-                        <strong>Confidence</strong><br>
-                        ${pred.confidence}%
-                    </div>
-                    <div class="stat">
-                        <strong>Score Prediction</strong><br>
-                        ${pred.predicted_score}
-                    </div>
-                    <div class="stat">
-                        <strong>Kickoff</strong><br>
-                        ${new Date(pred.kickoff).toLocaleString()}
-                    </div>
+                    <div class="stat"><strong>Prediction</strong><br>${pred.prediction.replace('_', ' ')}</div>
+                    <div class="stat"><strong>Confidence</strong><br>${pred.confidence}%</div>
+                    <div class="stat"><strong>Score Prediction</strong><br>${pred.predicted_score}</div>
+                    <div class="stat"><strong>Kickoff</strong><br>${new Date(pred.kickoff).toLocaleString()}</div>
                 </div>
                 <div class="stats">
-                    <div class="stat">
-                        <strong>Home Win</strong><br>
-                        ${pred.probabilities.home_win}%
-                    </div>
-                    <div class="stat">
-                        <strong>Draw</strong><br>
-                        ${pred.probabilities.draw}%
-                    </div>
-                    <div class="stat">
-                        <strong>Away Win</strong><br>
-                        ${pred.probabilities.away_win}%
-                    </div>
-                    <div class="stat">
-                        <strong>Has Odds</strong><br>
-                        ${pred.has_odds ? '✅ Yes' : '❌ No'}
-                    </div>
+                    <div class="stat"><strong>Home Win</strong><br>${pred.probabilities.home_win}%</div>
+                    <div class="stat"><strong>Draw</strong><br>${pred.probabilities.draw}%</div>
+                    <div class="stat"><strong>Away Win</strong><br>${pred.probabilities.away_win}%</div>
+                    <div class="stat"><strong>Has Odds</strong><br>${pred.has_odds ? '✅ Yes' : '❌ No'}</div>
                 </div>
-                
                 <div class="team-analysis">
                     <strong>${pred.home_team}</strong> (Position: ${pred.home_position})<br>
                     Form: ${homeFormBadges} (${pred.home_form.wins}W-${pred.home_form.draws}D-${pred.home_form.losses}L)<br>
                     Goals: ${pred.home_form.avg_goals_for}/game scored, ${pred.home_form.avg_goals_against}/game conceded
                 </div>
-                
                 <div class="team-analysis">
                     <strong>${pred.away_team}</strong> (Position: ${pred.away_position})<br>
                     Form: ${awayFormBadges} (${pred.away_form.wins}W-${pred.away_form.draws}D-${pred.away_form.losses}L)<br>
                     Goals: ${pred.away_form.avg_goals_for}/game scored, ${pred.away_form.avg_goals_against}/game conceded
                 </div>
-                
                 ${pred.value_bet ? '<p><strong>💰 Value Bet:</strong> ' + pred.value_bet + '</p>' : ''}
             </div>
         `;
@@ -633,7 +568,6 @@ function displayPredictions(predictions) {
 
 function generateFormBadges(formString) {
     if (!formString) return '<span class="form-badge" style="background:#999;">No data</span>';
-    
     return formString.split('').map(letter => {
         const className = letter === 'W' ? 'form-w' : letter === 'D' ? 'form-d' : 'form-l';
         return `<span class="form-badge ${className}">${letter}</span>`;
@@ -642,28 +576,14 @@ function generateFormBadges(formString) {
 
 function displayStats(stats) {
     if (!stats) return;
-    
     const html = `
         <div class="stats">
-            <div class="stat">
-                <strong>Total Predictions</strong><br>
-                ${stats.total_predictions}
-            </div>
-            <div class="stat">
-                <strong>High Confidence (60%+)</strong><br>
-                ${stats.high_confidence}
-            </div>
-            <div class="stat">
-                <strong>With Odds Data</strong><br>
-                ${stats.with_odds}
-            </div>
-            <div class="stat">
-                <strong>Average Confidence</strong><br>
-                ${stats.avg_confidence}%
-            </div>
+            <div class="stat"><strong>Total Predictions</strong><br>${stats.total_predictions}</div>
+            <div class="stat"><strong>High Confidence (60%+)</strong><br>${stats.high_confidence}</div>
+            <div class="stat"><strong>With Odds Data</strong><br>${stats.with_odds}</div>
+            <div class="stat"><strong>Average Confidence</strong><br>${stats.avg_confidence}%</div>
         </div>
     `;
-    
     document.getElementById('stats').innerHTML = html;
 }
 </script>
@@ -726,12 +646,9 @@ def health():
     return jsonify({"status": "healthy"})
 
 
-# Flask app bootstrap
-app = Flask(__name__)
+# Gunicorn entrypoint and dev server
+application = app
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port, debug=False)
-
-# For Gunicorn
-application = app
