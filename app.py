@@ -1,5 +1,3 @@
-Here you go — full script fixed (proper quotes, __init__, indentation, and no duplicate Flask app creation). Copy–paste ready:
-
 #!/usr/bin/env python3
 """
 WORKING SPORTMONKS BETTING PREDICTOR - USING REAL AVAILABLE DATA
