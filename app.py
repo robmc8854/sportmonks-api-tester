@@ -1,4 +1,4 @@
-# app.py — API-FOOTBALL (API-SPORTS) version with bookmaker filters, extra markets, CSV export, in-play scan
+# app.py — API-FOOTBALL version with smart date scanning (forward/backward), bookmaker filters, extra markets, CSV export, in-play scan
 import os, sys, time, threading, logging, csv, io
 from datetime import datetime, timedelta, date
 from typing import Dict, Any, List, Optional, Tuple
@@ -17,12 +17,17 @@ APIS_KEY = (os.getenv("APISPORTS_KEY") or os.getenv("API_SPORTS_KEY") or "").str
 HEADERS = {"x-apisports-key": APIS_KEY}
 
 EVERY_MINUTES = int(os.getenv("EVERY_MINUTES", "60"))            # daily cycle
-INPLAY_MINUTES = int(os.getenv("INPLAY_MINUTES", "0"))            # 0 disables in-play scan; e.g., 5 to enable
+INPLAY_MINUTES = int(os.getenv("INPLAY_MINUTES", "0"))            # 0 disables in-play scan
 EDGE_THRESHOLD = float(os.getenv("EDGE_THRESHOLD", "5"))          # % edge
 LEAGUE_WHITELIST = {x.strip() for x in os.getenv("LEAGUE_WHITELIST", "").split(",") if x.strip()}
 
-# Bookmaker controls
-# Priority list: we pick the first bookmaker found in this order; if not present we fall back to "best price".
+# Smart scanning controls
+SCAN_DIRECTION = os.getenv("SCAN_DIRECTION", "both").lower()      # 'forward' | 'backward' | 'both'
+MAX_SCAN_DAYS = int(os.getenv("MAX_SCAN_DAYS", "30"))             # how far to scan for fixtures
+FALLBACK_NEXT = int(os.getenv("FALLBACK_NEXT", "50"))             # size for /fixtures?next=
+FALLBACK_LAST = int(os.getenv("FALLBACK_LAST", "50"))             # size for /fixtures?last=
+
+# Bookmaker controls (priority order)
 BOOKMAKER_PRIORITY = [x.strip() for x in os.getenv(
     "APIS_BOOKMAKERS", "Pinnacle, bet365, Betfair, 1xBet, William Hill, Marathonbet"
 ).split(",") if x.strip()]
@@ -33,8 +38,8 @@ SEND_TELEGRAM = bool(TELEGRAM_TOKEN and CHAT_ID)
 
 STATE: Dict[str, Any] = {
     "last_run": None,
-    "predictions": {},  # date -> fixtures w/ prediction
-    "value_bets": {},   # date -> value bets (vb + fixture)
+    "predictions": {},  # keyed by date used
+    "value_bets": {},
     "errors": []
 }
 
@@ -48,8 +53,8 @@ logging.basicConfig(
     stream=sys.stdout
 )
 log = logging.getLogger("bet-bot")
-log.info("Booting API-FOOTBALL… tz=%s edge_threshold=%s every_minutes=%s key=%s",
-         APP_TZ, EDGE_THRESHOLD, EVERY_MINUTES, "SET" if APIS_KEY else "MISSING")
+log.info("Booting API-FOOTBALL… tz=%s edge_threshold=%s every_minutes=%s key=%s scan_dir=%s max_scan=%s",
+         APP_TZ, EDGE_THRESHOLD, EVERY_MINUTES, "SET" if APIS_KEY else "MISSING", SCAN_DIRECTION, MAX_SCAN_DAYS)
 
 def utc_now_iso() -> str:
     return datetime.utcnow().replace(tzinfo=tz.UTC).isoformat()
@@ -114,13 +119,78 @@ def apis_paginated(path: str, params: Dict[str, Any]) -> List[Dict[str, Any]]:
 # Fetchers (API-FOOTBALL)
 # =========================
 def get_fixtures_by_date(d: str) -> List[Dict[str, Any]]:
-    fixtures = apis_paginated("fixtures", {"date": d})
+    """Plain fetch by date (timezone-aware)."""
+    fixtures = apis_paginated("fixtures", {"date": d, "timezone": APP_TZ})
     log.info("Fixtures on %s: %d", d, len(fixtures))
     if LEAGUE_WHITELIST:
         before = len(fixtures)
         fixtures = [fx for fx in fixtures if str((fx.get("league") or {}).get("id", "")) in LEAGUE_WHITELIST]
         log.info("Whitelist filtered: %d -> %d", before, len(fixtures))
     return fixtures
+
+def get_fixtures_next(n: int) -> List[Dict[str, Any]]:
+    return apis_paginated("fixtures", {"next": n, "timezone": APP_TZ})
+
+def get_fixtures_last(n: int) -> List[Dict[str, Any]]:
+    return apis_paginated("fixtures", {"last": n, "timezone": APP_TZ})
+
+def group_by_calendar_date(fixtures: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    buckets: Dict[str, List[Dict[str, Any]]] = {}
+    for fx in fixtures:
+        when = ((fx.get("fixture") or {}).get("date") or "")
+        day = (when[:10]) if when else ""
+        if day:
+            buckets.setdefault(day, []).append(fx)
+    return buckets
+
+def find_date_with_fixtures(start_date: str) -> Tuple[str, List[Dict[str, Any]], str]:
+    """
+    Try the requested date; if empty, scan forward/backward up to MAX_SCAN_DAYS.
+    If still empty, fall back to 'next' then 'last'. Returns (effective_date, fixtures, strategy_used).
+    """
+    # First, try the exact day
+    fx = get_fixtures_by_date(start_date)
+    if fx:
+        return start_date, fx, "exact"
+
+    # Scan according to strategy
+    direction = SCAN_DIRECTION
+    log.info("No fixtures for %s — scanning direction=%s up to %s days", start_date, direction, MAX_SCAN_DAYS)
+
+    base = date.fromisoformat(start_date)
+
+    if direction in ("forward", "both"):
+        for i in range(1, MAX_SCAN_DAYS + 1):
+            d_f = (base + timedelta(days=i)).isoformat()
+            fx_f = get_fixtures_by_date(d_f)
+            if fx_f:
+                return d_f, fx_f, f"scan+{i}"
+
+    if direction in ("backward", "both"):
+        for i in range(1, MAX_SCAN_DAYS + 1):
+            d_b = (base - timedelta(days=i)).isoformat()
+            fx_b = get_fixtures_by_date(d_b)
+            if fx_b:
+                return d_b, fx_b, f"scan-{i}"
+
+    # Fall back to 'next' fixtures
+    log.info("No fixtures found by scanning. Falling back to /fixtures?next=%s", FALLBACK_NEXT)
+    nxt = get_fixtures_next(FALLBACK_NEXT)
+    by_day = group_by_calendar_date(nxt)
+    if by_day:
+        eff = sorted(by_day.keys())[0]  # earliest upcoming day
+        return eff, by_day[eff], "next"
+
+    # Fall back to 'last' fixtures (recent past)
+    log.info("No upcoming found. Falling back to /fixtures?last=%s", FALLBACK_LAST)
+    last = get_fixtures_last(FALLBACK_LAST)
+    by_day = group_by_calendar_date(last)
+    if by_day:
+        eff = sorted(by_day.keys())[-1]  # most recent day with fixtures
+        return eff, by_day[eff], "last"
+
+    # Nothing at all
+    return start_date, [], "none"
 
 def get_standings(league_id: int, season: int) -> List[Dict[str, Any]]:
     data = apis_get("standings", {"league": league_id, "season": season})
@@ -171,46 +241,29 @@ def get_team_form(team_id: int, start: str, end: str, season_hint: Optional[int]
 # Odds parsing (bookmaker priority + multiple markets)
 # =========================
 def _bookmaker_rank(name: str) -> int:
-    """Lower rank = higher priority. Unknown bookmakers get large rank."""
     name_l = (name or "").strip().lower()
     for idx, ref in enumerate(BOOKMAKER_PRIORITY):
         if name_l == ref.strip().lower():
             return idx
-    return 999  # unknowns last
+    return 999
 
 def _pick_best(values: List[Tuple[str, float, str]], prefer_label_set: set) -> Optional[Tuple[str, float, str]]:
-    """
-    values: list of (bookmakerName, oddFloat, label/selection)
-    prefer_label_set: e.g., {"home","draw","away"} or {"over 2.5","under 2.5"} or {"yes","no"}
-    Strategy: sort by bookmaker priority, then by highest odds within same bookmaker.
-    If none match prefer_label_set, return the max odd overall.
-    """
     if not values:
         return None
-    # filter to desired labels if present
     filtered = [v for v in values if v[2].lower() in prefer_label_set]
     pool = filtered if filtered else values
-    # group by bookmaker priority
     pool.sort(key=lambda x: (_bookmaker_rank(x[0]), -x[1]))
-    return pool[0]  # best bookmaker by priority, highest price within
+    return pool[0]
 
 def get_odds_for_fixture(fixture_id: int) -> Dict[str, Any]:
-    """
-    /odds?fixture=ID — extract:
-      - match_winner: {home, draw, away}
-      - over_under_25: {over, under}
-      - both_teams_score: {yes, no}
-    We prefer bookmakers in BOOKMAKER_PRIORITY, otherwise best available.
-    """
     data = apis_get("odds", {"fixture": fixture_id})
     resp = data.get("response", [])
     if not resp:
         return {}
 
-    # Collect all candidates
-    oneX2_vals: List[Tuple[str, float, str]] = []     # (book, odd, "home"/"draw"/"away")
-    ou25_vals: List[Tuple[str, float, str]] = []      # (book, odd, "over 2.5"/"under 2.5")
-    btts_vals: List[Tuple[str, float, str]] = []      # (book, odd, "yes"/"no")
+    oneX2_vals: List[Tuple[str, float, str]] = []
+    ou25_vals: List[Tuple[str, float, str]] = []
+    btts_vals: List[Tuple[str, float, str]] = []
 
     for book in resp:
         bname = (book.get("bookmaker") or {}).get("name") or book.get("name") or ""
@@ -218,80 +271,54 @@ def get_odds_for_fixture(fixture_id: int) -> Dict[str, Any]:
             bet_name = (bet.get("name") or "").lower().strip()
             values = bet.get("values") or []
 
-            # 1X2 aliases
             if bet_name in ("match winner", "1x2", "winner"):
                 for sel in values:
-                    try:
-                        odd = float(sel.get("odd"))
-                    except Exception:
-                        continue
+                    try: odd = float(sel.get("odd"))
+                    except Exception: continue
                     label = (sel.get("value") or "").lower().strip()
-                    if label in ("home", "1", "home team"):
-                        oneX2_vals.append((bname, odd, "home"))
-                    elif label in ("draw", "x"):
-                        oneX2_vals.append((bname, odd, "draw"))
-                    elif label in ("away", "2", "away team"):
-                        oneX2_vals.append((bname, odd, "away"))
+                    if label in ("home", "1", "home team"): oneX2_vals.append((bname, odd, "home"))
+                    elif label in ("draw", "x"): oneX2_vals.append((bname, odd, "draw"))
+                    elif label in ("away", "2", "away team"): oneX2_vals.append((bname, odd, "away"))
 
-            # Over/Under aliases (we target 2.5 total goals)
             if "over" in bet_name and "under" in bet_name:
                 for sel in values:
-                    try:
-                        odd = float(sel.get("odd"))
-                    except Exception:
-                        continue
-                    label = (sel.get("value") or "").lower().strip()  # e.g., "Over 2.5"
-                    if label in ("over 2.5", "o 2.5", "over2.5"):
-                        ou25_vals.append((bname, odd, "over 2.5"))
-                    elif label in ("under 2.5", "u 2.5", "under2.5"):
-                        ou25_vals.append((bname, odd, "under 2.5"))
+                    try: odd = float(sel.get("odd"))
+                    except Exception: continue
+                    label = (sel.get("value") or "").lower().strip()
+                    if label in ("over 2.5", "o 2.5", "over2.5"): ou25_vals.append((bname, odd, "over 2.5"))
+                    elif label in ("under 2.5", "u 2.5", "under2.5"): ou25_vals.append((bname, odd, "under 2.5"))
 
-            # BTTS aliases
             if "both teams to score" in bet_name or "btts" in bet_name:
                 for sel in values:
-                    try:
-                        odd = float(sel.get("odd"))
-                    except Exception:
-                        continue
+                    try: odd = float(sel.get("odd"))
+                    except Exception: continue
                     label = (sel.get("value") or "").lower().strip()
-                    if label in ("yes", "y"):
-                        btts_vals.append((bname, odd, "yes"))
-                    elif label in ("no", "n"):
-                        btts_vals.append((bname, odd, "no"))
+                    if label in ("yes", "y"): btts_vals.append((bname, odd, "yes"))
+                    elif label in ("no", "n"): btts_vals.append((bname, odd, "no"))
 
     result = {}
-
-    # choose best by bookmaker priority then price
-    best_home = _pick_best([v for v in oneX2_vals if v[2] == "home"], {"home"})
-    best_draw = _pick_best([v for v in oneX2_vals if v[2] == "draw"], {"draw"})
-    best_away = _pick_best([v for v in oneX2_vals if v[2] == "away"], {"away"})
+    best_home = _pick_best([v for v in oneX2_vals if v[2]=="home"], {"home"})
+    best_draw = _pick_best([v for v in oneX2_vals if v[2]=="draw"], {"draw"})
+    best_away = _pick_best([v for v in oneX2_vals if v[2]=="away"], {"away"})
     if best_home or best_draw or best_away:
         result["match_winner"] = {
             "home": best_home[1] if best_home else None,
             "draw": best_draw[1] if best_draw else None,
             "away": best_away[1] if best_away else None,
         }
-
     best_over = _pick_best(ou25_vals, {"over 2.5"})
     best_under = _pick_best(ou25_vals, {"under 2.5"})
     if best_over or best_under:
-        result["over_under_25"] = {
-            "over": best_over[1] if best_over else None,
-            "under": best_under[1] if best_under else None,
-        }
-
+        result["over_under_25"] = {"over": best_over[1] if best_over else None, "under": best_under[1] if best_under else None}
     best_yes = _pick_best(btts_vals, {"yes"})
     best_no  = _pick_best(btts_vals, {"no"})
     if best_yes or best_no:
-        result["both_teams_score"] = {
-            "yes": best_yes[1] if best_yes else None,
-            "no": best_no[1] if best_no else None,
-        }
+        result["both_teams_score"] = {"yes": best_yes[1] if best_yes else None, "no": best_no[1] if best_no else None}
 
     return result
 
 # =========================
-# Prediction math (unchanged core)
+# Prediction math
 # =========================
 def calculate_h2h_factor(h2h_fixtures: List[Dict[str, Any]], home_team_id: int) -> float:
     if not h2h_fixtures: return 0.0
@@ -375,7 +402,6 @@ def calculate_value_bets(fixtures_with_preds: List[Dict[str, Any]], edge_min: fl
 
         value_bets = []
 
-        # 1) Match winner 1X2
         mw = odds.get("match_winner") or {}
         if all(mw.get(k) for k in ("home", "draw", "away")):
             home_imp, draw_imp, away_imp = 1/float(mw["home"]), 1/float(mw["draw"]), 1/float(mw["away"])
@@ -396,7 +422,6 @@ def calculate_value_bets(fixtures_with_preds: List[Dict[str, Any]], edge_min: fl
                                    "predictedProb":f"{away_pred*100:.1f}","impliedProb":f"{away_imp*100:.1f}",
                                    "edge":f"{(away_pred-away_imp)*100:.1f}"})
 
-        # 2) Over/Under 2.5
         ou = odds.get("over_under_25") or {}
         if ou.get("over") and ou.get("under"):
             over_imp, under_imp = 1/float(ou["over"]), 1/float(ou["under"])
@@ -412,7 +437,6 @@ def calculate_value_bets(fixtures_with_preds: List[Dict[str, Any]], edge_min: fl
                                    "predictedProb":f"{under_pred*100:.1f}","impliedProb":f"{under_imp*100:.1f}",
                                    "edge":f"{(under_pred-under_imp)*100:.1f}"})
 
-        # 3) BTTS
         btts = odds.get("both_teams_score") or {}
         if btts.get("yes") and btts.get("no"):
             yes_imp, no_imp = 1/float(btts["yes"]), 1/float(btts["no"])
@@ -451,13 +475,14 @@ def normalize_fixture(fx: Dict[str, Any]) -> Dict[str, Any]:
 # =========================
 # Pipeline
 # =========================
-def run_pipeline_for_date(d: str) -> Dict[str, Any]:
-    log.info("=== Pipeline start for %s ===", d)
-    fixtures_raw = get_fixtures_by_date(d)
+def run_pipeline_for_date(requested_date: str) -> Dict[str, Any]:
+    log.info("=== Pipeline requested for %s ===", requested_date)
+    effective_date, fixtures_raw, strategy = find_date_with_fixtures(requested_date)
+    log.info("Effective date=%s (strategy=%s) fixtures=%d", effective_date, strategy, len(fixtures_raw))
+
     if not fixtures_raw:
-        STATE["predictions"][d] = []; STATE["value_bets"][d] = []; STATE["last_run"] = utc_now_iso()
-        log.warning("No fixtures for %s", d)
-        return {"count": 0, "value_bets": 0}
+        STATE["predictions"][effective_date] = []; STATE["value_bets"][effective_date] = []; STATE["last_run"] = utc_now_iso()
+        return {"count": 0, "value_bets": 0, "effective_date": effective_date, "strategy": strategy}
 
     standings_cache: Dict[str, List[Dict[str, Any]]] = {}
     def standings_for(league_id: int, season: int) -> List[Dict[str, Any]]:
@@ -466,9 +491,9 @@ def run_pipeline_for_date(d: str) -> Dict[str, Any]:
             standings_cache[key] = get_standings(league_id, season)
         return standings_cache[key]
 
-    # Team form window (past 180 days)
-    start = (date.fromisoformat(d) - timedelta(days=180)).isoformat()
-    end = d
+    # Team form window (past 180 days from effective_date)
+    start = (date.fromisoformat(effective_date) - timedelta(days=180)).isoformat()
+    end = effective_date
 
     # Collect unique team IDs + season hint
     team_ids: List[int] = []
@@ -502,18 +527,15 @@ def run_pipeline_for_date(d: str) -> Dict[str, Any]:
         league_id, season = league.get("id"), league.get("season")
         standings_rows = standings_for(league_id, season) if (league_id and season) else []
 
-        # H2H
         try:
             h2h = get_head_to_head(parts[0]["id"], parts[1]["id"], last=5)
         except Exception as e:
             log.warning("H2H error %s vs %s: %s", parts[0]["id"], parts[1]["id"], e)
             h2h = []
 
-        # Prediction
         pred = advanced_prediction(fxn, standings_rows, h2h, team_form)
         fxn["prediction"] = pred
 
-        # Odds for multiple markets
         try:
             fxn["odds"] = get_odds_for_fixture(fxn["id"])
         except Exception as e:
@@ -529,13 +551,13 @@ def run_pipeline_for_date(d: str) -> Dict[str, Any]:
     results.sort(key=lambda r: r["prediction"]["confidence"], reverse=True)
     value_bets.sort(key=lambda v: float(v["edge"]), reverse=True)
 
-    STATE["predictions"][d] = results
-    STATE["value_bets"][d] = value_bets
+    STATE["predictions"][effective_date] = results
+    STATE["value_bets"][effective_date] = value_bets
     STATE["last_run"] = utc_now_iso()
 
-    log.info("=== Pipeline done %s: fixtures=%d predictions=%d value_bets=%d ===",
-             d, len(fixtures_raw), len(results), len(value_bets))
-    return {"count": len(results), "value_bets": len(value_bets)}
+    log.info("=== Pipeline done %s: predictions=%d value_bets=%d ===",
+             effective_date, len(results), len(value_bets))
+    return {"count": len(results), "value_bets": len(value_bets), "effective_date": effective_date, "strategy": strategy}
 
 # =========================
 # Telegram
@@ -568,9 +590,10 @@ def notify_top_value_bets(d: str, top_n: int = 3):
 def scheduler_loop_daily():
     while True:
         try:
-            d = date.today().isoformat()
-            stats = run_pipeline_for_date(d)
-            notify_top_value_bets(d, top_n=3)
+            req = date.today().isoformat()
+            stats = run_pipeline_for_date(req)
+            eff = stats.get("effective_date", req)
+            notify_top_value_bets(eff, top_n=3)
             log.info("Daily run complete: %s", stats)
         except Exception as e:
             msg = f"scheduler error (daily): {e}"
@@ -582,11 +605,9 @@ def scheduler_loop_inplay():
         log.info("In-play scanner disabled"); return
     while True:
         try:
-            # Simple presence check: /fixtures?live=all (we only use it for logging)
             data = apis_get("fixtures", {"live": "all"})
             cnt = len(data.get("response", []) or [])
             log.info("In-play scan: live fixtures=%s", cnt)
-            # You could extend to pull odds for live fixtures and push alerts if edge>threshold
         except Exception as e:
             msg = f"scheduler error (in-play): {e}"
             log.exception(msg); record_error(msg)
@@ -603,10 +624,11 @@ def healthz():
 
 @app.route("/refresh", methods=["POST", "GET"])
 def refresh():
-    d = request.args.get("date") or date.today().isoformat()
-    stats = run_pipeline_for_date(d)
-    notify_top_value_bets(d, top_n=3)
-    return jsonify({"ok": True, "date": d, "stats": stats})
+    requested = request.args.get("date") or date.today().isoformat()
+    stats = run_pipeline_for_date(requested)
+    eff = stats.get("effective_date", requested)
+    notify_top_value_bets(eff, top_n=3)
+    return jsonify({"ok": True, "requested_date": requested, **stats})
 
 @app.route("/predictions")
 def predictions():
@@ -629,7 +651,6 @@ def value_bets():
         "last_run": STATE["last_run"]
     })
 
-# NEW: CSV export of value bets
 @app.route("/export/value-bets.csv")
 def export_value_bets_csv():
     d = request.args.get("date") or date.today().isoformat()
@@ -642,16 +663,14 @@ def export_value_bets_csv():
         home = (fx.get("participants") or [{}])[0].get("name", "")
         away = (fx.get("participants") or [{}, {}])[1].get("name", "")
         league = (fx.get("league") or {}).get("name", "")
-        w.writerow([
-            d, league, home, away, fx.get("starting_at",""),
-            vb.get("market",""), vb.get("selection",""), vb.get("odds",""),
-            vb.get("edge",""), vb.get("predictedProb",""), vb.get("impliedProb","")
-        ])
+        w.writerow([d, league, home, away, fx.get("starting_at",""),
+                    vb.get("market",""), vb.get("selection",""), vb.get("odds",""),
+                    vb.get("edge",""), vb.get("predictedProb",""), vb.get("impliedProb","")])
     output.seek(0)
     return Response(output.read(), mimetype="text/csv",
                     headers={"Content-Disposition": f'attachment; filename="value-bets-{d}.csv"'})
 
-# --- Minimal HTML dashboard (unchanged) ---
+# --- Minimal HTML dashboard (auto-adapts to effective_date) ---
 INDEX_HTML = """
 <!doctype html>
 <html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
@@ -665,6 +684,7 @@ INDEX_HTML = """
  table{width:100%;border-collapse:collapse} th,td{border-bottom:1px solid #374151;padding:8px;text-align:left;font-size:14px}
  .pill{padding:2px 8px;border-radius:999px;font-size:12px} .pill.green{background:#065f46;color:#a7f3d0} .pill.yellow{background:#78350f;color:#fde68a} .pill.red{background:#7f1d1d;color:#fecaca}
  .muted{color:#9ca3af} .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px} @media (max-width:900px){.grid{grid-template-columns:1fr}}
+ a { color:#93c5fd; text-decoration:underline; }
 </style></head>
 <body>
 <header><h1>API-FOOTBALL Betting Bot</h1><div class="muted">Predictions • Value Bets • Health</div></header>
@@ -706,7 +726,12 @@ INDEX_HTML = """
 <script>
 const $ = (s)=>document.querySelector(s); const today = new Date().toISOString().split('T')[0]; $("#dateInput").value = today;
 let timer=null; $("#autoSel").addEventListener("change",()=>{ if(timer) clearInterval(timer); const m=parseInt($("#autoSel").value||"0",10); if(m>0) timer=setInterval(loadAll,m*60*1000); });
-$("#runBtn").addEventListener("click",async()=>{ const d=$("#dateInput").value||today; $("#status").textContent="Running…"; await fetch(`/refresh?date=${d}`); $("#status").textContent="Done"; loadAll(); });
+$("#runBtn").addEventListener("click",async()=>{
+  const d=$("#dateInput").value||today; $("#status").textContent="Running…";
+  const res = await fetch(`/refresh?date=${d}`); const js = await res.json();
+  if(js.effective_date){ $("#dateInput").value = js.effective_date; }
+  $("#status").textContent=`Done (${js.strategy||'exact'})`; loadAll();
+});
 $("#reloadBtn").addEventListener("click", loadAll);
 $("#csvBtn").addEventListener("click", ()=>{ const d=$("#dateInput").value||today; window.location = `/export/value-bets.csv?date=${d}`; });
 
