@@ -1,4 +1,4 @@
-# app.py — API-FOOTBALL version with smart date scanning (forward/backward), bookmaker filters, extra markets, CSV export, in-play scan
+# app.py — API-FOOTBALL with raw debug endpoints + smart scan
 import os, sys, time, threading, logging, csv, io
 from datetime import datetime, timedelta, date
 from typing import Dict, Any, List, Optional, Tuple
@@ -13,21 +13,35 @@ from dateutil import tz
 APP_TZ = os.getenv("APP_TIMEZONE", "Europe/London")
 
 APIS_BASE = "https://v3.football.api-sports.io"
+
+# Support BOTH native API-FOOTBALL keys and RapidAPI keys
 APIS_KEY = (os.getenv("APISPORTS_KEY") or os.getenv("API_SPORTS_KEY") or "").strip()
-HEADERS = {"x-apisports-key": APIS_KEY}
+RAPIDAPI_KEY = (os.getenv("RAPIDAPI_KEY") or "").strip()
+
+def build_headers() -> Dict[str, str]:
+    if APIS_KEY:
+        return {"x-apisports-key": APIS_KEY}
+    if RAPIDAPI_KEY:
+        return {
+            "x-rapidapi-key": RAPIDAPI_KEY,
+            "x-rapidapi-host": "v3.football.api-sports.io",
+        }
+    return {}
+
+HEADERS = build_headers()
 
 EVERY_MINUTES = int(os.getenv("EVERY_MINUTES", "60"))            # daily cycle
-INPLAY_MINUTES = int(os.getenv("INPLAY_MINUTES", "0"))            # 0 disables in-play scan
-EDGE_THRESHOLD = float(os.getenv("EDGE_THRESHOLD", "5"))          # % edge
+INPLAY_MINUTES = int(os.getenv("INPLAY_MINUTES", "0"))           # 0 disables in-play scan
+EDGE_THRESHOLD = float(os.getenv("EDGE_THRESHOLD", "5"))         # % edge
 LEAGUE_WHITELIST = {x.strip() for x in os.getenv("LEAGUE_WHITELIST", "").split(",") if x.strip()}
 
 # Smart scanning controls
-SCAN_DIRECTION = os.getenv("SCAN_DIRECTION", "both").lower()      # 'forward' | 'backward' | 'both'
-MAX_SCAN_DAYS = int(os.getenv("MAX_SCAN_DAYS", "30"))             # how far to scan for fixtures
-FALLBACK_NEXT = int(os.getenv("FALLBACK_NEXT", "50"))             # size for /fixtures?next=
-FALLBACK_LAST = int(os.getenv("FALLBACK_LAST", "50"))             # size for /fixtures?last=
+SCAN_DIRECTION = os.getenv("SCAN_DIRECTION", "both").lower()     # 'forward' | 'backward' | 'both'
+MAX_SCAN_DAYS = int(os.getenv("MAX_SCAN_DAYS", "30"))            # how far to scan for fixtures
+FALLBACK_NEXT = int(os.getenv("FALLBACK_NEXT", "50"))            # size for /fixtures?next=
+FALLBACK_LAST = int(os.getenv("FALLBACK_LAST", "50"))            # size for /fixtures?last=
 
-# Bookmaker controls (priority order)
+# Bookmaker priority
 BOOKMAKER_PRIORITY = [x.strip() for x in os.getenv(
     "APIS_BOOKMAKERS", "Pinnacle, bet365, Betfair, 1xBet, William Hill, Marathonbet"
 ).split(",") if x.strip()]
@@ -38,7 +52,7 @@ SEND_TELEGRAM = bool(TELEGRAM_TOKEN and CHAT_ID)
 
 STATE: Dict[str, Any] = {
     "last_run": None,
-    "predictions": {},  # keyed by date used
+    "predictions": {},  # keyed by effective date
     "value_bets": {},
     "errors": []
 }
@@ -53,8 +67,11 @@ logging.basicConfig(
     stream=sys.stdout
 )
 log = logging.getLogger("bet-bot")
-log.info("Booting API-FOOTBALL… tz=%s edge_threshold=%s every_minutes=%s key=%s scan_dir=%s max_scan=%s",
-         APP_TZ, EDGE_THRESHOLD, EVERY_MINUTES, "SET" if APIS_KEY else "MISSING", SCAN_DIRECTION, MAX_SCAN_DAYS)
+log.info(
+    "Booting… tz=%s edge_threshold=%s every_minutes=%s auth=%s",
+    APP_TZ, EDGE_THRESHOLD, EVERY_MINUTES,
+    "APISPORTS_KEY" if APIS_KEY else ("RAPIDAPI_KEY" if RAPIDAPI_KEY else "MISSING")
+)
 
 def utc_now_iso() -> str:
     return datetime.utcnow().replace(tzinfo=tz.UTC).isoformat()
@@ -63,12 +80,12 @@ def record_error(msg: str):
     STATE["errors"].append({"t": utc_now_iso(), "msg": msg})
 
 # =========================
-# HTTP helper with simple retry (429/5xx)
+# HTTP helper with retry + verbose header logging
 # =========================
 def apis_get(path: str, params: Optional[Dict[str, Any]] = None, expect_list=True, retries: int = 2) -> Dict[str, Any]:
-    if not APIS_KEY:
-        msg = "API-FOOTBALL key missing — returning empty"
-        log.warning(msg); record_error(msg)
+    if not HEADERS:
+        msg = "No API credentials (APISPORTS_KEY or RAPIDAPI_KEY)."
+        log.error(msg); record_error(msg)
         return {"response": [], "results": 0, "paging": {"current": 1, "total": 1}}
 
     url = f"{APIS_BASE}/{path.lstrip('/')}"
@@ -79,7 +96,9 @@ def apis_get(path: str, params: Optional[Dict[str, Any]] = None, expect_list=Tru
         try:
             log.info("GET %s params=%s attempt=%s", url, q, attempt)
             r = requests.get(url, headers=HEADERS, params=q, timeout=45)
-            log.info("↳ status=%s, remaining=%s", r.status_code, r.headers.get("x-ratelimit-remaining", "?"))
+            # log useful headers if present
+            header_probe = {k.lower(): v for k, v in r.headers.items() if k.lower().startswith("x-")}
+            log.info("↳ status=%s headers=%s", r.status_code, header_probe)
             if r.status_code == 429 or 500 <= r.status_code < 600:
                 if attempt <= retries:
                     backoff = 2 ** attempt
@@ -119,7 +138,6 @@ def apis_paginated(path: str, params: Dict[str, Any]) -> List[Dict[str, Any]]:
 # Fetchers (API-FOOTBALL)
 # =========================
 def get_fixtures_by_date(d: str) -> List[Dict[str, Any]]:
-    """Plain fetch by date (timezone-aware)."""
     fixtures = apis_paginated("fixtures", {"date": d, "timezone": APP_TZ})
     log.info("Fixtures on %s: %d", d, len(fixtures))
     if LEAGUE_WHITELIST:
@@ -143,54 +161,50 @@ def group_by_calendar_date(fixtures: List[Dict[str, Any]]) -> Dict[str, List[Dic
             buckets.setdefault(day, []).append(fx)
     return buckets
 
-def find_date_with_fixtures(start_date: str) -> Tuple[str, List[Dict[str, Any]], str]:
-    """
-    Try the requested date; if empty, scan forward/backward up to MAX_SCAN_DAYS.
-    If still empty, fall back to 'next' then 'last'. Returns (effective_date, fixtures, strategy_used).
-    """
-    # First, try the exact day
+def find_date_with_fixtures(start_date: str) -> Tuple[str, List[Dict[str, Any]], str, List[Dict[str, Any]]]:
+    """Return (effective_date, fixtures, strategy, trace[]) where trace has every attempt we made."""
+    trace: List[Dict[str, Any]] = []
+    # exact
     fx = get_fixtures_by_date(start_date)
+    trace.append({"step": "exact", "date": start_date, "count": len(fx)})
     if fx:
-        return start_date, fx, "exact"
+        return start_date, fx, "exact", trace
 
-    # Scan according to strategy
     direction = SCAN_DIRECTION
-    log.info("No fixtures for %s — scanning direction=%s up to %s days", start_date, direction, MAX_SCAN_DAYS)
-
     base = date.fromisoformat(start_date)
-
     if direction in ("forward", "both"):
         for i in range(1, MAX_SCAN_DAYS + 1):
             d_f = (base + timedelta(days=i)).isoformat()
             fx_f = get_fixtures_by_date(d_f)
+            trace.append({"step": f"scan+{i}", "date": d_f, "count": len(fx_f)})
             if fx_f:
-                return d_f, fx_f, f"scan+{i}"
+                return d_f, fx_f, f"scan+{i}", trace
 
     if direction in ("backward", "both"):
         for i in range(1, MAX_SCAN_DAYS + 1):
             d_b = (base - timedelta(days=i)).isoformat()
             fx_b = get_fixtures_by_date(d_b)
+            trace.append({"step": f"scan-{i}", "date": d_b, "count": len(fx_b)})
             if fx_b:
-                return d_b, fx_b, f"scan-{i}"
+                return d_b, fx_b, f"scan-{i}", trace
 
-    # Fall back to 'next' fixtures
-    log.info("No fixtures found by scanning. Falling back to /fixtures?next=%s", FALLBACK_NEXT)
+    # next
     nxt = get_fixtures_next(FALLBACK_NEXT)
+    trace.append({"step": "next", "count": len(nxt)})
     by_day = group_by_calendar_date(nxt)
     if by_day:
-        eff = sorted(by_day.keys())[0]  # earliest upcoming day
-        return eff, by_day[eff], "next"
+        eff = sorted(by_day.keys())[0]
+        return eff, by_day[eff], "next", trace
 
-    # Fall back to 'last' fixtures (recent past)
-    log.info("No upcoming found. Falling back to /fixtures?last=%s", FALLBACK_LAST)
-    last = get_fixtures_last(FALLBACK_LAST)
-    by_day = group_by_calendar_date(last)
+    # last
+    lst = get_fixtures_last(FALLBACK_LAST)
+    trace.append({"step": "last", "count": len(lst)})
+    by_day = group_by_calendar_date(lst)
     if by_day:
-        eff = sorted(by_day.keys())[-1]  # most recent day with fixtures
-        return eff, by_day[eff], "last"
+        eff = sorted(by_day.keys())[-1]
+        return eff, by_day[eff], "last", trace
 
-    # Nothing at all
-    return start_date, [], "none"
+    return start_date, [], "none", trace
 
 def get_standings(league_id: int, season: int) -> List[Dict[str, Any]]:
     data = apis_get("standings", {"league": league_id, "season": season})
@@ -206,7 +220,6 @@ def get_standings(league_id: int, season: int) -> List[Dict[str, Any]]:
             "position": r.get("rank"),
             "points": (r.get("points")),
         })
-    log.info("Standings %s/%s rows=%d", league_id, season, len(out))
     return out
 
 def get_head_to_head(home_id: int, away_id: int, last: int = 5) -> List[Dict[str, Any]]:
@@ -233,12 +246,10 @@ def get_team_form(team_id: int, start: str, end: str, season_hint: Optional[int]
         else: losses += 1
     total = wins + draws + losses
     form_score = (wins*3 + draws)/(total*3) if total>0 else 0.5
-    out = {"wins": wins, "draws": draws, "losses": losses, "formScore": form_score, "form": f"{wins}W-{draws}D-{losses}L"}
-    log.info("Form team=%s -> %s", team_id, out)
-    return out
+    return {"wins": wins, "draws": draws, "losses": losses, "formScore": form_score, "form": f"{wins}W-{draws}D-{losses}L"}
 
 # =========================
-# Odds parsing (bookmaker priority + multiple markets)
+# Odds parsing (priority + multiple markets)
 # =========================
 def _bookmaker_rank(name: str) -> int:
     name_l = (name or "").strip().lower()
@@ -318,7 +329,7 @@ def get_odds_for_fixture(fixture_id: int) -> Dict[str, Any]:
     return result
 
 # =========================
-# Prediction math
+# Prediction math (unchanged)
 # =========================
 def calculate_h2h_factor(h2h_fixtures: List[Dict[str, Any]], home_team_id: int) -> float:
     if not h2h_fixtures: return 0.0
@@ -455,7 +466,6 @@ def calculate_value_bets(fixtures_with_preds: List[Dict[str, Any]], edge_min: fl
         match["valueBets"] = value_bets
         out.extend([dict(vb, fixture=match) for vb in value_bets])
 
-    log.info("Value bets found: %d (threshold=%s%%)", len(out), edge_min)
     return out
 
 # =========================
@@ -473,17 +483,16 @@ def normalize_fixture(fx: Dict[str, Any]) -> Dict[str, Any]:
     return {"id": fid, "starting_at": when, "venue": {"name": venue}, "league": league_obj, "participants": participants}
 
 # =========================
-# Pipeline
+# Pipeline (uses smart date finder)
 # =========================
 def run_pipeline_for_date(requested_date: str) -> Dict[str, Any]:
-    log.info("=== Pipeline requested for %s ===", requested_date)
-    effective_date, fixtures_raw, strategy = find_date_with_fixtures(requested_date)
-    log.info("Effective date=%s (strategy=%s) fixtures=%d", effective_date, strategy, len(fixtures_raw))
+    eff, fixtures_raw, strategy, trace = find_date_with_fixtures(requested_date)
 
     if not fixtures_raw:
-        STATE["predictions"][effective_date] = []; STATE["value_bets"][effective_date] = []; STATE["last_run"] = utc_now_iso()
-        return {"count": 0, "value_bets": 0, "effective_date": effective_date, "strategy": strategy}
+        STATE["predictions"][eff] = []; STATE["value_bets"][eff] = []; STATE["last_run"] = utc_now_iso()
+        return {"count": 0, "value_bets": 0, "effective_date": eff, "strategy": strategy, "trace": trace}
 
+    # cache standings per (league, season)
     standings_cache: Dict[str, List[Dict[str, Any]]] = {}
     def standings_for(league_id: int, season: int) -> List[Dict[str, Any]]:
         key = f"{league_id}:{season}"
@@ -491,9 +500,9 @@ def run_pipeline_for_date(requested_date: str) -> Dict[str, Any]:
             standings_cache[key] = get_standings(league_id, season)
         return standings_cache[key]
 
-    # Team form window (past 180 days from effective_date)
-    start = (date.fromisoformat(effective_date) - timedelta(days=180)).isoformat()
-    end = effective_date
+    # Team form window (past 180 days from effective date)
+    start = (date.fromisoformat(eff) - timedelta(days=180)).isoformat()
+    end = eff
 
     # Collect unique team IDs + season hint
     team_ids: List[int] = []
@@ -509,66 +518,47 @@ def run_pipeline_for_date(requested_date: str) -> Dict[str, Any]:
                 if season_hint and tid not in team_season_hint:
                     team_season_hint[tid] = season_hint
     team_ids = sorted(list(set(team_ids)))
-    log.info("Unique team IDs: %d", len(team_ids))
 
     # Compute team form
     team_form: Dict[int, Dict[str, Any]] = {}
     for tid in team_ids:
         team_form[tid] = get_team_form(tid, start, end, season_hint=team_season_hint.get(tid))
 
-    # For each fixture: normalize, fetch H2H, standings, odds, predict
+    # Normalize, H2H, odds, prediction
     results: List[Dict[str, Any]] = []
     for fx in fixtures_raw:
         fxn = normalize_fixture(fx)
         parts = fxn.get("participants") or []
         if len(parts) < 2 or not parts[0]["id"] or not parts[1]["id"]:
-            log.info("Skipping fixture (bad participants): %s", fxn.get("id")); continue
+            continue
         league = fxn.get("league") or {}
         league_id, season = league.get("id"), league.get("season")
         standings_rows = standings_for(league_id, season) if (league_id and season) else []
-
-        try:
-            h2h = get_head_to_head(parts[0]["id"], parts[1]["id"], last=5)
-        except Exception as e:
-            log.warning("H2H error %s vs %s: %s", parts[0]["id"], parts[1]["id"], e)
-            h2h = []
-
+        h2h = get_head_to_head(parts[0]["id"], parts[1]["id"], last=5)
         pred = advanced_prediction(fxn, standings_rows, h2h, team_form)
         fxn["prediction"] = pred
-
-        try:
-            fxn["odds"] = get_odds_for_fixture(fxn["id"])
-        except Exception as e:
-            log.warning("Odds error for fixture %s: %s", fxn["id"], e)
-            fxn["odds"] = {}
-
+        fxn["odds"] = get_odds_for_fixture(fxn["id"])
         results.append(fxn)
 
-    # Value bets across markets
+    # Value bets
     value_bets = calculate_value_bets(results, EDGE_THRESHOLD)
-
-    # Sort & persist
     results.sort(key=lambda r: r["prediction"]["confidence"], reverse=True)
     value_bets.sort(key=lambda v: float(v["edge"]), reverse=True)
 
-    STATE["predictions"][effective_date] = results
-    STATE["value_bets"][effective_date] = value_bets
+    STATE["predictions"][eff] = results
+    STATE["value_bets"][eff] = value_bets
     STATE["last_run"] = utc_now_iso()
 
-    log.info("=== Pipeline done %s: predictions=%d value_bets=%d ===",
-             effective_date, len(results), len(value_bets))
-    return {"count": len(results), "value_bets": len(value_bets), "effective_date": effective_date, "strategy": strategy}
+    return {"count": len(results), "value_bets": len(value_bets), "effective_date": eff, "strategy": strategy, "trace": trace}
 
 # =========================
 # Telegram
 # =========================
 def send_telegram(text: str):
-    if not SEND_TELEGRAM:
-        log.info("Telegram disabled; skipping"); return
+    if not SEND_TELEGRAM: return
     try:
         requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
                       data={"chat_id": CHAT_ID, "text": text}, timeout=15)
-        log.info("Telegram sent")
     except Exception as e:
         log.error("Telegram send error: %s", e)
 
@@ -585,7 +575,7 @@ def notify_top_value_bets(d: str, top_n: int = 3):
     send_telegram("\n".join(lines))
 
 # =========================
-# Schedulers (daily + optional in-play)
+# Schedulers
 # =========================
 def scheduler_loop_daily():
     while True:
@@ -594,10 +584,8 @@ def scheduler_loop_daily():
             stats = run_pipeline_for_date(req)
             eff = stats.get("effective_date", req)
             notify_top_value_bets(eff, top_n=3)
-            log.info("Daily run complete: %s", stats)
         except Exception as e:
-            msg = f"scheduler error (daily): {e}"
-            log.exception(msg); record_error(msg)
+            record_error(f"scheduler daily: {e}")
         time.sleep(EVERY_MINUTES * 60)
 
 def scheduler_loop_inplay():
@@ -609,8 +597,7 @@ def scheduler_loop_inplay():
             cnt = len(data.get("response", []) or [])
             log.info("In-play scan: live fixtures=%s", cnt)
         except Exception as e:
-            msg = f"scheduler error (in-play): {e}"
-            log.exception(msg); record_error(msg)
+            record_error(f"scheduler in-play: {e}")
         time.sleep(INPLAY_MINUTES * 60)
 
 # =========================
@@ -622,7 +609,7 @@ app = Flask(__name__)
 def healthz():
     return jsonify({"ok": True, "last_run": STATE["last_run"], "errors": STATE["errors"][-5:]})
 
-@app.route("/refresh", methods=["POST", "GET"])
+@app.route("/refresh")
 def refresh():
     requested = request.args.get("date") or date.today().isoformat()
     stats = run_pipeline_for_date(requested)
@@ -651,6 +638,68 @@ def value_bets():
         "last_run": STATE["last_run"]
     })
 
+# ---------- RAW DEBUG ENDPOINTS ----------
+@app.route("/debug/fixtures")
+def dbg_fixtures():
+    d = request.args.get("date") or date.today().isoformat()
+    data = apis_get("fixtures", {"date": d, "timezone": APP_TZ}, expect_list=True, retries=0)
+    return jsonify({"requested": {"date": d, "timezone": APP_TZ}, "raw": data})
+
+@app.route("/debug/fixtures_next")
+def dbg_fixtures_next():
+    n = int(request.args.get("n", "20"))
+    data = apis_get("fixtures", {"next": n, "timezone": APP_TZ}, expect_list=True, retries=0)
+    return jsonify({"requested": {"next": n, "timezone": APP_TZ}, "raw": data})
+
+@app.route("/debug/fixtures_last")
+def dbg_fixtures_last():
+    n = int(request.args.get("n", "20"))
+    data = apis_get("fixtures", {"last": n, "timezone": APP_TZ}, expect_list=True, retries=0)
+    return jsonify({"requested": {"last": n, "timezone": APP_TZ}, "raw": data})
+
+@app.route("/debug/odds")
+def dbg_odds():
+    fid = request.args.get("fixture")
+    if not fid: return jsonify({"error": "pass ?fixture=ID"}), 400
+    data = apis_get("odds", {"fixture": fid}, expect_list=True, retries=0)
+    return jsonify({"requested": {"fixture": fid}, "raw": data})
+
+@app.route("/debug/standings")
+def dbg_standings():
+    league = request.args.get("league")
+    season = request.args.get("season")
+    if not (league and season): return jsonify({"error": "pass ?league=ID&season=YYYY"}), 400
+    data = apis_get("standings", {"league": league, "season": season}, expect_list=True, retries=0)
+    return jsonify({"requested": {"league": league, "season": season}, "raw": data})
+
+@app.route("/debug/headtohead")
+def dbg_h2h():
+    home = request.args.get("home"); away = request.args.get("away")
+    last = int(request.args.get("last", "5"))
+    if not (home and away): return jsonify({"error": "pass ?home=ID&away=ID"}), 400
+    data = apis_get("fixtures/headtohead", {"h2h": f"{home}-{away}", "last": last}, expect_list=True, retries=0)
+    return jsonify({"requested": {"h2h": f"{home}-{away}", "last": last}, "raw": data})
+
+@app.route("/debug/leagues")
+def dbg_leagues():
+    # Try useful probes: current leagues, coverage sanity check
+    current = request.args.get("current", "true")
+    data = apis_get("leagues", {"current": current}, expect_list=True, retries=0)
+    return jsonify({"requested": {"current": current}, "raw": data})
+
+@app.route("/debug/effective")
+def dbg_effective():
+    requested = request.args.get("date") or date.today().isoformat()
+    eff, fixtures_raw, strategy, trace = find_date_with_fixtures(requested)
+    return jsonify({
+        "requested_date": requested,
+        "effective_date": eff,
+        "strategy": strategy,
+        "trace": trace,
+        "counts": {"fixtures": len(fixtures_raw)}
+    })
+
+# ---------- CSV export ----------
 @app.route("/export/value-bets.csv")
 def export_value_bets_csv():
     d = request.args.get("date") or date.today().isoformat()
@@ -670,7 +719,7 @@ def export_value_bets_csv():
     return Response(output.read(), mimetype="text/csv",
                     headers={"Content-Disposition": f'attachment; filename="value-bets-{d}.csv"'})
 
-# --- Minimal HTML dashboard (auto-adapts to effective_date) ---
+# ---------- Minimal UI (unchanged) ----------
 INDEX_HTML = """
 <!doctype html>
 <html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
@@ -684,10 +733,10 @@ INDEX_HTML = """
  table{width:100%;border-collapse:collapse} th,td{border-bottom:1px solid #374151;padding:8px;text-align:left;font-size:14px}
  .pill{padding:2px 8px;border-radius:999px;font-size:12px} .pill.green{background:#065f46;color:#a7f3d0} .pill.yellow{background:#78350f;color:#fde68a} .pill.red{background:#7f1d1d;color:#fecaca}
  .muted{color:#9ca3af} .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px} @media (max-width:900px){.grid{grid-template-columns:1fr}}
- a { color:#93c5fd; text-decoration:underline; }
+ a{color:#93c5fd;text-decoration:underline}
 </style></head>
 <body>
-<header><h1>API-FOOTBALL Betting Bot</h1><div class="muted">Predictions • Value Bets • Health</div></header>
+<header><h1>API-FOOTBALL Betting Bot</h1><div class="muted">Predictions • Value Bets • Health • <a href="/debug/leagues">/debug/leagues</a></div></header>
 <div class="wrap">
  <div class="card">
   <div class="row">
@@ -695,7 +744,12 @@ INDEX_HTML = """
    <div><label class="muted">Auto-refresh (mins)</label><br/>
      <select id="autoSel"><option value="0">Off</option><option value="2">2</option><option value="5">5</option><option value="10">10</option></select>
    </div>
-   <div style="margin-top:22px"><button id="runBtn">Run now</button> <button id="reloadBtn">Reload Tables</button> <a href="#" id="csvBtn">Download CSV</a></div>
+   <div style="margin-top:22px">
+     <button id="runBtn">Run now</button>
+     <button id="reloadBtn">Reload Tables</button>
+     <a href="#" id="csvBtn">Download CSV</a>
+     <a href="#" id="probeBtn">Probe Day</a>
+   </div>
    <div class="muted" id="status" style="margin-left:auto"></div>
   </div>
  </div>
@@ -734,6 +788,10 @@ $("#runBtn").addEventListener("click",async()=>{
 });
 $("#reloadBtn").addEventListener("click", loadAll);
 $("#csvBtn").addEventListener("click", ()=>{ const d=$("#dateInput").value||today; window.location = `/export/value-bets.csv?date=${d}`; });
+$("#probeBtn").addEventListener("click", async()=>{
+  const d=$("#dateInput").value||today;
+  window.open(`/debug/effective?date=${d}`,'_blank');
+});
 
 function fmt(n){ return n==null?'':(typeof n==='number'?n.toFixed(0):n); }
 async function loadPredictions(){
